@@ -34,6 +34,6 @@ const stats = computed(() => ({
       <span>本会话已抽 <b>{{ stats.picked }}</b></span>
       <span>历史 <b>{{ stats.historyCount }}</b></span>
     </div>
-    <div class="text-subtle">Kleros v0.1.0</div>
+    <div class="text-subtle">Kleros v1.0</div>
   </footer>
 </template>

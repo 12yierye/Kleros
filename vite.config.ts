@@ -5,6 +5,8 @@ import { fileURLToPath, URL } from 'node:url'
 import { renameSync } from 'node:fs'
 import { resolve } from 'node:path'
 
+const VERSION = '1.1'
+
 const OUTPUT_HTML_NAME = 'Kleros.html'
 
 function renameHtml(): Plugin {
@@ -14,7 +16,7 @@ function renameHtml(): Plugin {
     writeBundle(options) {
       const outDir = options.dir || 'dist'
       try {
-        renameSync(resolve(outDir, 'Kleros.html'), resolve(outDir, OUTPUT_HTML_NAME))
+        renameSync(resolve(outDir, `Kleros ${VERSION}.html`), resolve(outDir, OUTPUT_HTML_NAME))
       } catch {}
     },
   }

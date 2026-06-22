@@ -11,6 +11,23 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 import { fileURLToPath, URL } from 'node:url';
+import { renameSync } from 'node:fs';
+import { resolve } from 'node:path';
+var VERSION = '1.1';
+var OUTPUT_HTML_NAME = 'Kleros.html';
+function renameHtml() {
+    return {
+        name: 'rename-html',
+        apply: 'build',
+        writeBundle: function (options) {
+            var outDir = options.dir || 'dist';
+            try {
+                renameSync(resolve(outDir, "Kleros ".concat(VERSION, ".html")), resolve(outDir, OUTPUT_HTML_NAME));
+            }
+            catch (_a) { }
+        },
+    };
+}
 function fixFileUrlHtml() {
     return {
         name: 'fix-file-url',
@@ -36,7 +53,7 @@ export default defineConfig(function (_a) {
         plugins: __spreadArray(__spreadArray([
             vue(),
             viteSingleFile()
-        ], (command === 'build' ? [fixFileUrlHtml()] : []), true), [
+        ], (command === 'build' ? [fixFileUrlHtml(), renameHtml()] : []), true), [
             {
                 name: 'fix-dev-base',
                 apply: 'serve',

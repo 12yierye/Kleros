@@ -144,7 +144,7 @@ function onQuickUndo() {
           </div>
           <div
             v-if="showUndo && picks.length > 0"
-            style="position: absolute; bottom: 100%; right: 0; margin-bottom: 4px; background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); z-index: 50; min-width: 200px; max-height: 240px; overflow-y: auto;"
+            style="position: absolute; top: 100%; right: 0; margin-top: 4px; background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); z-index: 50; min-width: 200px; max-height: 360px; overflow-y: auto;"
           >
             <div style="padding: 6px 10px; font-size: 12px; color: var(--color-text-muted); border-bottom: 1px solid var(--color-border);">撤销到...</div>
             <button v-for="(_, i) in picks" :key="i" class="btn btn--ghost" style="display: block; width: 100%; text-align: left; padding: 6px 10px; font-size: 13px; border-radius: 0;" @click="onUndo(i)">第{{ i + 1 }}轮 · {{ pickDisplay(i) }}</button>

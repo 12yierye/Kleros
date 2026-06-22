@@ -13,8 +13,8 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 import { fileURLToPath, URL } from 'node:url';
 import { renameSync } from 'node:fs';
 import { resolve } from 'node:path';
-var VERSION = '1.1';
-var OUTPUT_HTML_NAME = 'Kleros.html';
+var VERSION = '1.2';
+// const OUTPUT_HTML_NAME = `Kleros ${VERSION}.html`
 function renameHtml() {
     return {
         name: 'rename-html',
@@ -22,7 +22,7 @@ function renameHtml() {
         writeBundle: function (options) {
             var outDir = options.dir || 'dist';
             try {
-                renameSync(resolve(outDir, "Kleros ".concat(VERSION, ".html")), resolve(outDir, OUTPUT_HTML_NAME));
+                renameSync(resolve(outDir, "Kleros ".concat(VERSION, ".html")), resolve(outDir, "Kleros ".concat(VERSION, ".html")));
             }
             catch (_a) { }
         },

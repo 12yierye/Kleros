@@ -110,11 +110,17 @@ export function useSession() {
   }
 
   function undoToPick(pickIndex: number): string[] | null {
-    if (!current.value) return null
-    if (pickIndex < 0 || pickIndex >= current.value.picks.length) return null
+    if (!current.value) { console.log('[useSession] undoToPick: no current session'); return null }
+    if (pickIndex < 0 || pickIndex >= current.value.picks.length) {
+      console.log('[useSession] undoToPick: out of range, pickIndex:', pickIndex, 'picks.length:', current.value.picks.length)
+      return null
+    }
+    const oldPicks = current.value.picks.length
     const undone = current.value.picks.slice(pickIndex).flatMap(p => p.uids)
+    console.log('[useSession] undoToPick: pickIndex:', pickIndex, 'old picks count:', oldPicks, 'undone uids:', undone)
     current.value.picks = current.value.picks.slice(0, pickIndex)
     current.value.totalPicked = current.value.picks.reduce((sum, p) => sum + p.uids.length, 0)
+    console.log('[useSession] undoToPick: new picks count:', current.value.picks.length, 'totalPicked:', current.value.totalPicked)
     const idx = history.value.findIndex(s => s.id === current.value!.id)
     if (idx >= 0) history.value[idx] = { ...current.value }
     return undone

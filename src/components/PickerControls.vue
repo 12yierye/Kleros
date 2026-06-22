@@ -54,24 +54,34 @@ function onStart() {
 }
 
 function onUndo(pickIndex: number) {
+  console.log('[PickerControls] onUndo called, pickIndex:', pickIndex, 'picks.length:', picks.value.length)
   showUndo.value = false
   const undone = undoToPick(pickIndex)
+  console.log('[PickerControls] undoToPick returned:', undone)
   if (undone) {
+    console.log('[PickerControls] clearing lastResults/lastError, resetting pickedThisSession for:', undone)
     picker.lastResults.value = []
     picker.lastError.value = null
     const set = new Set(undone)
     for (const e of roster.value) {
       if (set.has(e.uid)) e.pickedThisSession = false
     }
+    console.log('[PickerControls] after undo - picks:', picks.value, 'poolSize:', picker.poolSize.value)
+  } else {
+    console.log('[PickerControls] undoToPick returned null/empty, no changes made')
   }
 }
 
-function toggleUndo() { showUndo.value = !showUndo.value }
+function toggleUndo() {
+  console.log('[PickerControls] toggleUndo, showUndo was:', showUndo.value, 'picks.length:', picks.value.length)
+  showUndo.value = !showUndo.value
+}
 function closeUndo() { showUndo.value = false }
 
 function onQuickUndo() {
   showUndo.value = false
   if (picks.value.length === 0) return
+  console.log('[PickerControls] onQuickUndo, calling onUndo with index:', picks.value.length - 1)
   onUndo(picks.value.length - 1)
 }
 </script>
@@ -127,9 +137,11 @@ function onQuickUndo() {
       </div>
 
       <div style="display: flex; align-items: center; gap: 8px;">
-        <div class="btn-group" style="position: relative;">
-          <button class="btn btn--undo-quick" @click="onQuickUndo" :disabled="picks.length === 0" title="撤回上轮">↶</button>
-          <button class="btn btn--undo-dropdown" :class="{ 'btn--undo-glow': poolEmpty }" @click="toggleUndo" :disabled="picks.length === 0" title="撤销到…">↩</button>
+        <div style="position: relative;">
+          <div class="btn-group">
+            <button class="btn btn--undo-quick" @click="onQuickUndo" :disabled="picks.length === 0" title="撤回上轮">↶</button>
+            <button class="btn btn--undo-dropdown" :class="{ 'btn--undo-glow': poolEmpty }" @click="toggleUndo" :disabled="picks.length === 0" title="撤销到…">↩</button>
+          </div>
           <div
             v-if="showUndo && picks.length > 0"
             style="position: absolute; bottom: 100%; right: 0; margin-bottom: 4px; background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); z-index: 50; min-width: 200px; max-height: 240px; overflow-y: auto;"

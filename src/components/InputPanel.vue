@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { parseNamesFromText, parseNamesFromCSV, readFileAsText } from '@/utils/nameParser'
 
-const { addMany } = useRoster()
+const roster = useRoster()
 const { addMany: addManyPermanent } = usePermanentRoster()
 
 type Tab = 'paste' | 'manual' | 'file'
@@ -13,6 +13,8 @@ const tab = ref<Tab>('paste')
 const pasteText = ref('')
 const manualText = ref('')
 const message = ref<{ kind: 'ok' | 'warn'; text: string } | null>(null)
+
+const showGroupDropdown = ref(false)
 
 function showMsg(kind: 'ok' | 'warn', text: string) {
   message.value = { kind, text }
@@ -27,7 +29,7 @@ function doParse(text: string, csv: boolean) {
     showMsg('warn', '未解析到任何名字')
     return
   }
-  const { added, duplicates } = addMany(result.names)
+  const { added, duplicates } = roster.addMany(result.names, { groupId: roster.activeGroupId.value })
   const parts: string[] = []
   parts.push(`已加入 ${added} 人`)
   if (duplicates > 0) parts.push(`跳过重名 ${duplicates} 人`)
@@ -43,7 +45,7 @@ function onAddToRoster() {
 function onAddOneManual() {
   const v = manualText.value.trim()
   if (!v) return
-  const r = addMany([v])
+  const r = roster.addMany([v], { groupId: roster.activeGroupId.value })
   if (r.added > 0) {
     showMsg('ok', `已加入 1 人`)
     manualText.value = ''
@@ -66,12 +68,45 @@ async function onFile(e: Event) {
     input.value = ''
   }
 }
+
+function onNewGroup() {
+  roster.addGroup()
+}
+
+function selectGroup(id: string) {
+  roster.setActiveGroup(id)
+  showGroupDropdown.value = false
+}
+
+const activeGroupName = computed(() => {
+  const g = roster.groups.value.find(g => g.id === roster.activeGroupId.value)
+  return g ? g.name : '临时名单'
+})
 </script>
 
 <template>
   <section class="main-section">
     <div class="main-section__title">
       <span>数据输入</span>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+      <span class="text-muted" style="font-size: 13px;">添加到:</span>
+      <div style="position: relative;">
+        <button class="btn" style="font-size: 13px; padding: 4px 10px;" @click="showGroupDropdown = !showGroupDropdown">
+          {{ activeGroupName }} ▾
+        </button>
+        <div v-if="showGroupDropdown" style="position: absolute; top: 100%; left: 0; margin-top: 2px; background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); z-index: 50; min-width: 140px;">
+          <button
+            v-for="g in roster.groups.value" :key="g.id"
+            class="btn btn--ghost"
+            :style="{ display: 'block', width: '100%', textAlign: 'left', fontSize: '13px', padding: '5px 12px', borderRadius: '0', fontWeight: g.id === roster.activeGroupId.value ? '600' : '400' }"
+            @click="selectGroup(g.id)"
+          >{{ g.name }}</button>
+        </div>
+        <div v-if="showGroupDropdown" style="position: fixed; inset: 0; z-index: 40;" @click="showGroupDropdown = false" />
+      </div>
+      <button class="btn" style="font-size: 12px; padding: 4px 10px;" @click="onNewGroup">+ 新建名单</button>
     </div>
 
     <div class="tabs">

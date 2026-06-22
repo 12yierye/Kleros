@@ -4,13 +4,13 @@
  */
 
 import { computed, type Ref } from 'vue'
-import { useStorage } from './useStorage'
+import { useDB } from './useDB'
 import { STORAGE_KEYS } from '@/constants'
 import type { BlackWhiteList } from '@/types/list'
 
 let _list: Ref<BlackWhiteList> | undefined
 function getList() {
-  if (!_list) _list = useStorage<BlackWhiteList>(STORAGE_KEYS.LISTS_BW, { black: [], white: [] }, 'local')
+  if (!_list) _list = useDB<BlackWhiteList>(STORAGE_KEYS.LISTS_BW, { black: [], white: [] })
   return _list
 }
 

@@ -6,6 +6,7 @@ import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { useBlackWhiteList } from '@/composables/useBlackWhiteList'
 import { useSession } from '@/composables/useSession'
 import { useSettings } from '@/composables/useSettings'
+import { clearAllDB } from '@/composables/useDB'
 import { downloadExport } from '@/utils/export'
 import { readFileAsJSON, importData } from '@/utils/import'
 
@@ -30,12 +31,25 @@ function onClearAll() {
     confirmText: '清空',
   }).then(ok => {
     if (!ok) return
-    roster.clear()
-    permanent.clear()
-    bw.clearBlack()
-    bw.clearWhite()
+    roster.entries.value = []
+    roster.groups.value = []
+    permanent.entries.value = []
+    bw.list.value = { black: [], white: [] }
     session.clearAllHistory()
     reset()
+  })
+}
+
+function onClearCache() {
+  void ui.askConfirm({
+    title: '清除缓存？',
+    message: '将清除 IndexedDB 中所有 Kleros 数据，并刷新页面。适用于解决重名误报等缓存残留问题。',
+    danger: true,
+    confirmText: '清除并刷新',
+  }).then(async (ok) => {
+    if (!ok) return
+    await clearAllDB()
+    window.location.reload()
   })
 }
 
@@ -175,8 +189,9 @@ function onImportClick() {
           <div style="display: flex; flex-wrap: wrap; gap: 8px;">
             <button class="btn" @click="openGlobalRename">全局重命名…</button>
             <button class="btn btn--danger" @click="onClearAll">清空全部数据</button>
+            <button class="btn btn--danger" @click="onClearCache">清除缓存</button>
           </div>
-          <div class="field__hint">全局重命名：搜索所有 UID 中显示名匹配的人，可勾选是否同步历史</div>
+          <div class="field__hint">全局重命名：搜索 UID 匹配的人并批量替换 · 清除缓存：彻底抹除所有存储数据并刷新</div>
         </div>
       </div>
       <div class="modal__footer">

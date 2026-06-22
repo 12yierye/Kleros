@@ -4,14 +4,14 @@
  */
 
 import { computed, type Ref } from 'vue'
-import { useStorage } from './useStorage'
+import { useDB } from './useDB'
 import { uid } from '@/utils/id'
 import { STORAGE_KEYS, UID_PREFIX } from '@/constants'
 import type { PermanentEntry, Name } from '@/types/roster'
 
 let _entries: Ref<PermanentEntry[]> | undefined
 function getEntries() {
-  if (!_entries) _entries = useStorage<PermanentEntry[]>(STORAGE_KEYS.ROSTER_PERMANENT, [], 'local')
+  if (!_entries) _entries = useDB<PermanentEntry[]>(STORAGE_KEYS.ROSTER_PERMANENT, [])
   return _entries
 }
 

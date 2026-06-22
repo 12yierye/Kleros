@@ -9,11 +9,13 @@ import { watch, onMounted, nextTick } from 'vue'
 import { useSession } from './useSession'
 import { useRoster } from './useRoster'
 import { useBlackWhiteList } from './useBlackWhiteList'
+import { dbReady } from './useDB'
 import { isFullSession } from '@/types/session'
+import type { RosterGroup } from '@/types/roster'
 
 export function useSessionManager() {
   const session = useSession()
-  const { entries: roster } = useRoster()
+  const { entries: roster, groups, activeGroupId, ensureDefaultGroup } = useRoster()
   const { list } = useBlackWhiteList()
 
   let savePending = false
@@ -31,6 +33,7 @@ export function useSessionManager() {
     const cur = session.current.value
     if (!cur) return
     cur.roster = JSON.parse(JSON.stringify(roster.value))
+    cur.rosterGroups = JSON.parse(JSON.stringify(groups.value))
     cur.blacklist = [...list.value.black]
     cur.whitelist = [...list.value.white]
   }
@@ -55,11 +58,13 @@ export function useSessionManager() {
     if (!target || !isFullSession(target)) return
     session.current.value = target
     roster.value = JSON.parse(JSON.stringify(target.roster || []))
+    groups.value = JSON.parse(JSON.stringify(target.rosterGroups || []))
     list.value = {
       black: [...(target.blacklist || [])],
       white: [...(target.whitelist || [])],
     }
     target.endedAt = null
+    ensureDefaultGroup()
     syncPickedFlags()
     session.initLastSeen()
   }
@@ -69,26 +74,33 @@ export function useSessionManager() {
     if (!session.current.value) {
       session.startNewSession()
       roster.value = []
+      groups.value = []
       list.value = { black: [], white: [] }
+      ensureDefaultGroup()
     }
   }
 
   function init() {
-    onMounted(() => {
+    onMounted(async () => {
+      await dbReady
       if (session.history.value.length === 0) {
         session.startNewSession()
+        ensureDefaultGroup()
       } else {
         const mostRecent = session.history.value[0]
         if (!isFullSession(mostRecent)) {
           session.startNewSession()
+          ensureDefaultGroup()
         } else {
           session.current.value = mostRecent
           roster.value = JSON.parse(JSON.stringify(mostRecent.roster || []))
+          groups.value = JSON.parse(JSON.stringify(mostRecent.rosterGroups || []))
           list.value = {
             black: [...(mostRecent.blacklist || [])],
             white: [...(mostRecent.whitelist || [])],
           }
           mostRecent.endedAt = null
+          ensureDefaultGroup()
         }
       }
       syncPickedFlags()

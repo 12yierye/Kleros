@@ -54,34 +54,24 @@ function onStart() {
 }
 
 function onUndo(pickIndex: number) {
-  console.log('[PickerControls] onUndo called, pickIndex:', pickIndex, 'picks.length:', picks.value.length)
   showUndo.value = false
   const undone = undoToPick(pickIndex)
-  console.log('[PickerControls] undoToPick returned:', undone)
   if (undone) {
-    console.log('[PickerControls] clearing lastResults/lastError, resetting pickedThisSession for:', undone)
     picker.lastResults.value = []
     picker.lastError.value = null
     const set = new Set(undone)
     for (const e of roster.value) {
       if (set.has(e.uid)) e.pickedThisSession = false
     }
-    console.log('[PickerControls] after undo - picks:', picks.value, 'poolSize:', picker.poolSize.value)
-  } else {
-    console.log('[PickerControls] undoToPick returned null/empty, no changes made')
   }
 }
 
-function toggleUndo() {
-  console.log('[PickerControls] toggleUndo, showUndo was:', showUndo.value, 'picks.length:', picks.value.length)
-  showUndo.value = !showUndo.value
-}
+function toggleUndo() { showUndo.value = !showUndo.value }
 function closeUndo() { showUndo.value = false }
 
 function onQuickUndo() {
   showUndo.value = false
   if (picks.value.length === 0) return
-  console.log('[PickerControls] onQuickUndo, calling onUndo with index:', picks.value.length - 1)
   onUndo(picks.value.length - 1)
 }
 </script>

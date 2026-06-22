@@ -13,6 +13,7 @@ export const UID_PREFIX = {
   ROSTER: 'r_',
   PERMANENT: 'p_',
   SESSION: 's_',
+  GROUP: 'g_',
 } as const
 
 export const LIMITS = {

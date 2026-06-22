@@ -3,14 +3,14 @@
  */
 
 import { type Ref } from 'vue'
-import { useStorage } from './useStorage'
+import { useDB } from './useDB'
 import { STORAGE_KEYS } from '@/constants'
 import { DEFAULT_PREFERENCES, type UserPreferences } from '@/types/settings'
 
 let _prefs: Ref<UserPreferences> | undefined
 function getPrefs() {
   if (!_prefs) {
-    _prefs = useStorage<UserPreferences>(STORAGE_KEYS.PREFS, DEFAULT_PREFERENCES, 'local')
+    _prefs = useDB<UserPreferences>(STORAGE_KEYS.PREFS, DEFAULT_PREFERENCES)
     _prefs.value = { ...DEFAULT_PREFERENCES, ..._prefs.value }
   }
   return _prefs

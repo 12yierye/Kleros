@@ -52,17 +52,13 @@ watch(isPicking, (val) => {
 })
 
 watch(() => picks.value.length, (len, oldLen) => {
-  console.log('[PickerStage] picks.length changed:', oldLen, '->', len)
   if (len < oldLen) {
     if (len === 0) {
-      console.log('[PickerStage] all picks undone, pulseName -> null')
       pulseName.value = null
     } else {
       const lastPick = picks.value[picks.value.length - 1]
       if (lastPick && lastPick.uids.length > 0) {
-        const name = resolveName(lastPick.uids[lastPick.uids.length - 1])
-        console.log('[PickerStage] setting pulseName to:', name)
-        pulseName.value = name
+        pulseName.value = resolveName(lastPick.uids[lastPick.uids.length - 1])
       }
     }
   }
@@ -79,8 +75,8 @@ const display = computed(() => {
   if (lastError.value) return lastError.value
   if (isPicking.value && prefs.value.pickStyle === 'animate') return scrollingName.value || '…'
   if (isPicking.value) return '…'
-  if (isExhausted.value) { console.log('[PickerStage] display: exhausted, poolSize:', poolSize.value, 'picks.length:', picks.value.length); return '抽完了，请回溯' }
-  if (pulseName.value) { console.log('[PickerStage] display: pulseName:', pulseName.value); return pulseName.value }
+  if (isExhausted.value) return '抽完了，请回溯'
+  if (pulseName.value) return pulseName.value
   return '准备就绪'
 })
 

@@ -6,7 +6,7 @@
  * 每个会话保存当时完整的名单和过滤条件快照，切换时恢复最后一刻的状态
  */
 
-import type { RosterEntry } from './roster'
+import type { RosterEntry, RosterGroup } from './roster'
 
 export type PickMode = 'single' | 'multi'
 
@@ -30,6 +30,8 @@ export interface Session {
   picks: PickRecord[]
   /** 缓存的抽中总人次，避免每次重算 */
   totalPicked: number
+  /** 分组列表 */
+  rosterGroups: RosterGroup[]
   /** 临时名单快照 */
   roster: RosterEntry[]
   /** 黑名单快照 */

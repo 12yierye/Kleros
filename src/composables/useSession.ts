@@ -5,7 +5,7 @@
  */
 
 import { ref, computed, watch, type Ref } from 'vue'
-import { useStorage } from './useStorage'
+import { useDB } from './useDB'
 import { useSettings } from './useSettings'
 import { uid } from '@/utils/id'
 import { STORAGE_KEYS, UID_PREFIX } from '@/constants'
@@ -13,13 +13,13 @@ import type { Session, SessionSummary, PickMode, PickRecord } from '@/types/sess
 
 let _current: Ref<Session | null> | undefined
 function getCurrent() {
-  if (!_current) _current = useStorage<Session | null>(STORAGE_KEYS.SESSION_CURRENT, null, 'local')
+  if (!_current) _current = useDB<Session | null>(STORAGE_KEYS.SESSION_CURRENT, null)
   return _current
 }
 
 let _history: Ref<(Session | SessionSummary)[]> | undefined
 function getHistory() {
-  if (!_history) _history = useStorage<(Session | SessionSummary)[]>(STORAGE_KEYS.SESSION_HISTORY, [], 'local')
+  if (!_history) _history = useDB<(Session | SessionSummary)[]>(STORAGE_KEYS.SESSION_HISTORY, [])
   return _history
 }
 
@@ -46,6 +46,7 @@ export function useSession() {
       picks: [],
       totalPicked: 0,
       roster: [],
+      rosterGroups: [],
       blacklist: [],
       whitelist: [],
     }
@@ -110,17 +111,11 @@ export function useSession() {
   }
 
   function undoToPick(pickIndex: number): string[] | null {
-    if (!current.value) { console.log('[useSession] undoToPick: no current session'); return null }
-    if (pickIndex < 0 || pickIndex >= current.value.picks.length) {
-      console.log('[useSession] undoToPick: out of range, pickIndex:', pickIndex, 'picks.length:', current.value.picks.length)
-      return null
-    }
-    const oldPicks = current.value.picks.length
+    if (!current.value) return null
+    if (pickIndex < 0 || pickIndex >= current.value.picks.length) return null
     const undone = current.value.picks.slice(pickIndex).flatMap(p => p.uids)
-    console.log('[useSession] undoToPick: pickIndex:', pickIndex, 'old picks count:', oldPicks, 'undone uids:', undone)
     current.value.picks = current.value.picks.slice(0, pickIndex)
     current.value.totalPicked = current.value.picks.reduce((sum, p) => sum + p.uids.length, 0)
-    console.log('[useSession] undoToPick: new picks count:', current.value.picks.length, 'totalPicked:', current.value.totalPicked)
     const idx = history.value.findIndex(s => s.id === current.value!.id)
     if (idx >= 0) history.value[idx] = { ...current.value }
     return undone

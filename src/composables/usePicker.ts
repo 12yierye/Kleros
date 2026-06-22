@@ -14,7 +14,7 @@ import type { PickMode } from '@/types/session'
 let _instance: ReturnType<typeof createPicker> | undefined
 
 function createPicker() {
-  const { entries: roster } = useRoster()
+  const { entries: roster, crossGroup, activeGroupId } = useRoster()
   const { entries: permanent } = usePermanentRoster()
   const { list } = useBlackWhiteList()
   const { current, appendPick } = useSession()
@@ -28,8 +28,11 @@ function createPicker() {
 
   const pool = computed<CandidateItem[]>(() => {
     if (!current.value) return []
+    const filteredRoster = crossGroup.value
+      ? roster.value
+      : roster.value.filter(e => e.groupId === activeGroupId.value)
     return buildCandidatePool({
-      roster: roster.value,
+      roster: filteredRoster,
       permanent: permanent.value,
       list: list.value,
       session: current.value,

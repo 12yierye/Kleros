@@ -1,4 +1,5 @@
-import { STORAGE_KEYS } from '../constants'
+import { getDB } from '@/composables/useDB'
+import type { PersistenceData } from '@/composables/useDB'
 
 interface ImportData {
   version?: number
@@ -22,15 +23,7 @@ interface ImportResult {
   error?: string
 }
 
-const VALIDATORS: Record<string, (v: unknown) => boolean> = {
-  rosterTemp: Array.isArray,
-  rosterPerm: Array.isArray,
-  listsBlack: Array.isArray,
-  listsWhite: Array.isArray,
-  sessionsHistory: Array.isArray,
-}
-
-export function importData(json: string): ImportResult {
+export async function importData(json: string): Promise<ImportResult> {
   let parsed: ImportData
   try {
     parsed = JSON.parse(json) as ImportData
@@ -65,33 +58,41 @@ export function importData(json: string): ImportResult {
     return { ok: false, error: 'sessions.history 必须是数组' }
   }
 
-  const local = window.localStorage
-  const session = window.sessionStorage
+  const db = await getDB()
+
+  const writes: Promise<void>[] = []
 
   if (rosterTemp !== undefined) {
-    session.setItem(STORAGE_KEYS.ROSTER_TEMP, JSON.stringify(rosterTemp))
+    writes.push(writeDB(db, 'roster_temporary', rosterTemp))
   }
   if (rosterPerm !== undefined) {
-    local.setItem(STORAGE_KEYS.ROSTER_PERMANENT, JSON.stringify(rosterPerm))
+    writes.push(writeDB(db, 'roster_permanent', rosterPerm))
   }
   if (parsed.lists !== undefined) {
-    local.setItem(STORAGE_KEYS.LISTS_BW, JSON.stringify({ black: listsBlack ?? [], white: listsWhite ?? [] }))
+    writes.push(writeDB(db, 'lists_bw', { black: listsBlack ?? [], white: listsWhite ?? [] }))
   }
   if (parsed.sessions !== undefined) {
-    if (sessionsCur !== undefined && sessionsCur !== null) {
-      local.setItem(STORAGE_KEYS.SESSION_CURRENT, JSON.stringify(sessionsCur))
-    } else {
-      local.removeItem(STORAGE_KEYS.SESSION_CURRENT)
-    }
+    writes.push(writeDB(db, 'session_current', sessionsCur ?? null))
     if (sessionsHist !== undefined) {
-      local.setItem(STORAGE_KEYS.SESSION_HISTORY, JSON.stringify(sessionsHist))
+      writes.push(writeDB(db, 'session_history', sessionsHist))
     }
   }
   if (parsed.prefs !== undefined) {
-    local.setItem(STORAGE_KEYS.PREFS, JSON.stringify(parsed.prefs))
+    writes.push(writeDB(db, 'prefs', parsed.prefs))
   }
 
+  await Promise.all(writes)
   return { ok: true }
+}
+
+function writeDB(db: IDBDatabase, storeName: string, value: unknown): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite')
+    const store = tx.objectStore(storeName)
+    store.put(value, 'value')
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }
 
 export function readFileAsJSON(file: File): Promise<string> {

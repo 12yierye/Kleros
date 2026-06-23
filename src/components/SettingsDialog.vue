@@ -75,9 +75,9 @@ function onImportClick() {
         message: '将覆盖全部现有数据（临时/常驻/黑白名单/会话/偏好），不可撤销。确定导入？',
         danger: true,
         confirmText: '导入',
-      }).then(ok => {
+      }).then(async ok => {
         if (!ok) return
-        const result = importData(text)
+        const result = await importData(text)
         if (result.ok) {
           window.location.reload()
         } else {

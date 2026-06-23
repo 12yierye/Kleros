@@ -2,8 +2,18 @@
 import { provide, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { provideUi, useUi } from '@/composables/useUi'
 import { useSettings } from '@/composables/useSettings'
+import { useSession } from '@/composables/useSession'
+import { useRoster } from '@/composables/useRoster'
+import { usePermanentRoster } from '@/composables/usePermanentRoster'
+import { useBlackWhiteList } from '@/composables/useBlackWhiteList'
 import { useSessionManager } from '@/composables/useSessionManager'
 import { usePicker } from '@/composables/usePicker'
+import { useFilePersistence } from '@/composables/useFilePersistence'
+import { exportAllDB, dbReady } from '@/composables/useDB'
+import { DEFAULT_PREFERENCES } from '@/types/settings'
+import type { UserPreferences } from '@/types/settings'
+import type { RosterEntry, PermanentEntry } from '@/types/roster'
+import type { Session, SessionSummary } from '@/types/session'
 
 import AppHeader from '@/components/AppHeader.vue'
 import AppFooter from '@/components/AppFooter.vue'
@@ -19,8 +29,14 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const ui = provideUi()
 const { prefs, update } = useSettings()
+const filePersistence = useFilePersistence()
+const sessionRefs = useSession()
+const rosterRefs = useRoster()
+const permanentRefs = usePermanentRoster()
+const bwRefs = useBlackWhiteList()
+const settingsRefs = useSettings()
+
 const session = useSessionManager()
-session.init()
 const picker = usePicker()
 
 if (!prefs.value.rememberLayout) {
@@ -76,7 +92,56 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
-onMounted(() => window.addEventListener('keydown', handleKeydown))
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+function debouncedSave() {
+  if (!filePersistence.isConnected.value) return
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(async () => {
+    const data = await exportAllDB()
+    await filePersistence.saveToFile(data)
+  }, 500)
+}
+
+onMounted(async () => {
+  await dbReady
+  await filePersistence.init()
+  const data = await filePersistence.loadFromFile()
+  if (data) {
+    rosterRefs.entries.value = data.roster.temporary as RosterEntry[]
+    permanentRefs.entries.value = data.roster.permanent as PermanentEntry[]
+    bwRefs.list.value = data.lists
+    sessionRefs.current.value = data.sessions.current as Session | null
+    sessionRefs.history.value = data.sessions.history as (Session | SessionSummary)[]
+    if (data.prefs) {
+      settingsRefs.prefs.value = {
+        ...DEFAULT_PREFERENCES,
+        ...(data.prefs as Partial<UserPreferences>),
+      }
+    }
+  }
+  await session.init()
+
+  watch(
+    [
+      () => sessionRefs.current.value,
+      () => sessionRefs.history.value,
+      () => rosterRefs.entries.value,
+      () => rosterRefs.groups.value,
+      () => permanentRefs.entries.value,
+      () => bwRefs.list.value,
+      () => settingsRefs.prefs.value,
+    ],
+    debouncedSave,
+    { deep: true }
+  )
+
+  if (filePersistence.isConnected.value) {
+    debouncedSave()
+  }
+
+  window.addEventListener('keydown', handleKeydown)
+})
+
 onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 </script>
 

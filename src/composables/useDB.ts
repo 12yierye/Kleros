@@ -6,7 +6,7 @@
 import { ref, watch, type Ref } from 'vue'
 
 const DB_NAME = 'kleros'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 let dbPromise: Promise<IDBDatabase> | null = null
 let migrating = false
@@ -20,7 +20,8 @@ export function getDB(): Promise<IDBDatabase> {
       const request = indexedDB.open(DB_NAME, DB_VERSION)
       request.onupgradeneeded = () => {
         const db = request.result
-        for (const name of storeNames) {
+        const all = [...storeNames, 'file_handle']
+        for (const name of all) {
           if (!db.objectStoreNames.contains(name)) {
             db.createObjectStore(name)
           }
@@ -167,4 +168,67 @@ export async function clearAllDB(): Promise<void> {
       tx.onerror = () => reject(tx.error)
     })
   }
+}
+
+export interface PersistenceData {
+  version: 1
+  savedAt: number
+  roster: { temporary: unknown[]; permanent: unknown[] }
+  lists: { black: string[]; white: string[] }
+  sessions: { current: unknown; history: unknown[] }
+  prefs: unknown
+}
+
+async function readStore<T>(db: IDBDatabase, name: string, fallback: T): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(name, 'readonly')
+    const store = tx.objectStore(name)
+    const req = store.get('value')
+    req.onsuccess = () => resolve((req.result as T) ?? fallback)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function writeStore(db: IDBDatabase, name: string, value: unknown): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(name, 'readwrite')
+    const store = tx.objectStore(name)
+    store.put(value, 'value')
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+}
+
+export async function exportAllDB(): Promise<PersistenceData> {
+  const db = await getDB()
+  const [temp, perm] = await Promise.all([
+    readStore<unknown[]>(db, 'roster_temporary', []),
+    readStore<unknown[]>(db, 'roster_permanent', []),
+  ])
+  const lists = await readStore<{ black: string[]; white: string[] }>(db, 'lists_bw', { black: [], white: [] })
+  const [cur, hist] = await Promise.all([
+    readStore<unknown>(db, 'session_current', null),
+    readStore<unknown[]>(db, 'session_history', []),
+  ])
+  const prefs = await readStore<unknown>(db, 'prefs', null)
+  return {
+    version: 1,
+    savedAt: Date.now(),
+    roster: { temporary: temp, permanent: perm },
+    lists,
+    sessions: { current: cur, history: hist },
+    prefs,
+  }
+}
+
+export async function importAllDB(data: PersistenceData): Promise<void> {
+  const db = await getDB()
+  await Promise.all([
+    writeStore(db, 'roster_temporary', data.roster.temporary),
+    writeStore(db, 'roster_permanent', data.roster.permanent),
+    writeStore(db, 'lists_bw', data.lists),
+    writeStore(db, 'session_current', data.sessions.current),
+    writeStore(db, 'session_history', data.sessions.history),
+    writeStore(db, 'prefs', data.prefs),
+  ])
 }

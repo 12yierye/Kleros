@@ -5,13 +5,12 @@
  * - 自动保存：监听 roster / blacklist / whitelist 变更同步到当前会话
  */
 
-import { watch, onMounted, nextTick } from 'vue'
+import { watch, nextTick } from 'vue'
 import { useSession } from './useSession'
 import { useRoster } from './useRoster'
 import { useBlackWhiteList } from './useBlackWhiteList'
 import { dbReady } from './useDB'
 import { isFullSession } from '@/types/session'
-import type { RosterGroup } from '@/types/roster'
 
 export function useSessionManager() {
   const session = useSession()
@@ -39,7 +38,7 @@ export function useSessionManager() {
   }
 
   watch(
-    [roster, () => list.value.black, () => list.value.white],
+    [roster, groups, () => list.value.black, () => list.value.white],
     () => {
       if (savePending) return
       savePending = true
@@ -80,32 +79,30 @@ export function useSessionManager() {
     }
   }
 
-  function init() {
-    onMounted(async () => {
-      await dbReady
-      if (session.history.value.length === 0) {
+  async function init() {
+    await dbReady
+    if (session.history.value.length === 0) {
+      session.startNewSession()
+      ensureDefaultGroup()
+    } else {
+      const mostRecent = session.history.value[0]
+      if (!isFullSession(mostRecent)) {
         session.startNewSession()
         ensureDefaultGroup()
       } else {
-        const mostRecent = session.history.value[0]
-        if (!isFullSession(mostRecent)) {
-          session.startNewSession()
-          ensureDefaultGroup()
-        } else {
-          session.current.value = mostRecent
-          roster.value = JSON.parse(JSON.stringify(mostRecent.roster || []))
-          groups.value = JSON.parse(JSON.stringify(mostRecent.rosterGroups || []))
-          list.value = {
-            black: [...(mostRecent.blacklist || [])],
-            white: [...(mostRecent.whitelist || [])],
-          }
-          mostRecent.endedAt = null
-          ensureDefaultGroup()
+        session.current.value = mostRecent
+        roster.value = JSON.parse(JSON.stringify(mostRecent.roster || []))
+        groups.value = JSON.parse(JSON.stringify(mostRecent.rosterGroups || []))
+        list.value = {
+          black: [...(mostRecent.blacklist || [])],
+          white: [...(mostRecent.whitelist || [])],
         }
+        mostRecent.endedAt = null
+        ensureDefaultGroup()
       }
-      syncPickedFlags()
-      session.initLastSeen()
-    })
+    }
+    syncPickedFlags()
+    session.initLastSeen()
   }
 
   return {

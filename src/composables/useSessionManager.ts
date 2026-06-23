@@ -11,6 +11,7 @@ import { useRoster } from './useRoster'
 import { useBlackWhiteList } from './useBlackWhiteList'
 import { dbReady } from './useDB'
 import { isFullSession } from '@/types/session'
+import { debug } from '@/utils/debug'
 
 export function useSessionManager() {
   const session = useSession()
@@ -35,6 +36,7 @@ export function useSessionManager() {
     cur.rosterGroups = JSON.parse(JSON.stringify(groups.value))
     cur.blacklist = [...list.value.black]
     cur.whitelist = [...list.value.white]
+    debug('session', `saveSnapshot roster=${cur.roster.length} picks=${cur.totalPicked}`)
   }
 
   watch(
@@ -45,7 +47,7 @@ export function useSessionManager() {
       saveSnapshot()
       nextTick(() => { savePending = false })
     },
-    { deep: true }
+    { deep: true, flush: 'sync' }
   )
 
   function switchSession(id: string) {
@@ -81,15 +83,19 @@ export function useSessionManager() {
 
   async function init() {
     await dbReady
+    debug('session', `init history.length=${session.history.value.length}`)
     if (session.history.value.length === 0) {
+      debug('session', 'no history, starting new session')
       session.startNewSession()
       ensureDefaultGroup()
     } else {
       const mostRecent = session.history.value[0]
       if (!isFullSession(mostRecent)) {
+        debug('session', 'most recent is compressed, starting new')
         session.startNewSession()
         ensureDefaultGroup()
       } else {
+        debug('session', `restoring session ${mostRecent.id} picks=${mostRecent.picks.length} roster=${(mostRecent.roster || []).length}`)
         session.current.value = mostRecent
         roster.value = JSON.parse(JSON.stringify(mostRecent.roster || []))
         groups.value = JSON.parse(JSON.stringify(mostRecent.rosterGroups || []))
@@ -103,6 +109,7 @@ export function useSessionManager() {
     }
     syncPickedFlags()
     session.initLastSeen()
+    debug('session', `init done, roster=${roster.value.length}`)
   }
 
   return {

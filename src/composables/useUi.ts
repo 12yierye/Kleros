@@ -10,6 +10,7 @@ export type ModalKind =
   | 'settings'
   | 'rename'
   | 'globalRename'
+  | 'dbInspect'
   | 'confirm'
   | null
 

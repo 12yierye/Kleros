@@ -4,11 +4,13 @@
  */
 
 import { ref, watch, type Ref } from 'vue'
+import { debug } from '@/utils/debug'
 
-const DB_NAME = 'kleros'
-const DB_VERSION = 2
+const DB_NAME = 'kleros_v4'
+const DB_VERSION = 3
 
 let dbPromise: Promise<IDBDatabase> | null = null
+let _dbInstance: IDBDatabase | null = null
 let migrating = false
 let _loadCount = 0
 let _dbReadyResolve: (() => void) | null = null
@@ -20,15 +22,18 @@ export function getDB(): Promise<IDBDatabase> {
       const request = indexedDB.open(DB_NAME, DB_VERSION)
       request.onupgradeneeded = () => {
         const db = request.result
-        const all = [...storeNames, 'file_handle']
-        for (const name of all) {
+        debug('db', `onupgradeneeded version=${db.version}`)
+        for (const name of storeNames) {
           if (!db.objectStoreNames.contains(name)) {
             db.createObjectStore(name)
+            debug('db', `created store: ${name}`)
           }
         }
       }
       request.onsuccess = () => {
         const db = request.result
+        _dbInstance = db
+        debug('db', `opened ${db.name} v${db.version} stores=${Array.from(db.objectStoreNames).join(',')}`)
         if (!migrating) {
           migrating = true
           migrateFromLegacy(db).finally(() => resolve(db))
@@ -43,22 +48,22 @@ export function getDB(): Promise<IDBDatabase> {
 }
 
 const storeNames = [
-  'roster_temporary',
-  'roster_permanent',
-  'lists_bw',
-  'session_current',
-  'session_history',
-  'prefs',
+  'kleros.roster.temporary',
+  'kleros.roster.permanent',
+  'kleros.lists.bw',
+  'kleros.session.current',
+  'kleros.session.history',
+  'kleros.prefs',
 ]
 
 /** 旧 localStorage/sessionStorage key → DB store 映射 */
 const legacyMap: Record<string, string> = {
-  'kleros.roster.temporary': 'roster_temporary',
-  'kleros.roster.permanent': 'roster_permanent',
-  'kleros.lists.bw': 'lists_bw',
-  'kleros.session.current': 'session_current',
-  'kleros.session.history': 'session_history',
-  'kleros.prefs': 'prefs',
+  'kleros.roster.temporary': 'kleros.roster.temporary',
+  'kleros.roster.permanent': 'kleros.roster.permanent',
+  'kleros.lists.bw': 'kleros.lists.bw',
+  'kleros.session.current': 'kleros.session.current',
+  'kleros.session.history': 'kleros.session.history',
+  'kleros.prefs': 'kleros.prefs',
 }
 
 async function migrateFromLegacy(db: IDBDatabase) {
@@ -147,7 +152,7 @@ export function useDB<T>(storeName: string, defaultValue: T): Ref<T> {
 
   watch(state, (val) => {
     if (!ready) return
-    dbSave(storeName, val).catch(err => {
+    dbSave(storeName, JSON.parse(JSON.stringify(val))).catch(err => {
       console.error(`[useDB] failed to save ${storeName}`, err)
     })
   }, { deep: true })
@@ -168,6 +173,29 @@ export async function clearAllDB(): Promise<void> {
       tx.onerror = () => reject(tx.error)
     })
   }
+}
+
+/** 删除整个 IndexedDB 数据库（彻底重建用） */
+export function deleteDB(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (_dbInstance) {
+      try {
+        _dbInstance.close()
+        debug('db', 'closed existing connection')
+      } catch (e) {
+        debug('db', 'close failed', e)
+      }
+      _dbInstance = null
+    }
+    dbPromise = null
+    const req = indexedDB.deleteDatabase(DB_NAME)
+    req.onsuccess = () => {
+      debug('db', 'deleteDatabase success')
+      resolve()
+    }
+    req.onerror = () => reject(req.error)
+    req.onblocked = () => debug('db', 'deleteDatabase blocked, waiting')
+  })
 }
 
 export interface PersistenceData {
@@ -202,15 +230,15 @@ async function writeStore(db: IDBDatabase, name: string, value: unknown): Promis
 export async function exportAllDB(): Promise<PersistenceData> {
   const db = await getDB()
   const [temp, perm] = await Promise.all([
-    readStore<unknown[]>(db, 'roster_temporary', []),
-    readStore<unknown[]>(db, 'roster_permanent', []),
+    readStore<unknown[]>(db, 'kleros.roster.temporary', []),
+    readStore<unknown[]>(db, 'kleros.roster.permanent', []),
   ])
-  const lists = await readStore<{ black: string[]; white: string[] }>(db, 'lists_bw', { black: [], white: [] })
+  const lists = await readStore<{ black: string[]; white: string[] }>(db, 'kleros.lists.bw', { black: [], white: [] })
   const [cur, hist] = await Promise.all([
-    readStore<unknown>(db, 'session_current', null),
-    readStore<unknown[]>(db, 'session_history', []),
+    readStore<unknown>(db, 'kleros.session.current', null),
+    readStore<unknown[]>(db, 'kleros.session.history', []),
   ])
-  const prefs = await readStore<unknown>(db, 'prefs', null)
+  const prefs = await readStore<unknown>(db, 'kleros.prefs', null)
   return {
     version: 1,
     savedAt: Date.now(),
@@ -224,11 +252,11 @@ export async function exportAllDB(): Promise<PersistenceData> {
 export async function importAllDB(data: PersistenceData): Promise<void> {
   const db = await getDB()
   await Promise.all([
-    writeStore(db, 'roster_temporary', data.roster.temporary),
-    writeStore(db, 'roster_permanent', data.roster.permanent),
-    writeStore(db, 'lists_bw', data.lists),
-    writeStore(db, 'session_current', data.sessions.current),
-    writeStore(db, 'session_history', data.sessions.history),
-    writeStore(db, 'prefs', data.prefs),
+    writeStore(db, 'kleros.roster.temporary', data.roster.temporary),
+    writeStore(db, 'kleros.roster.permanent', data.roster.permanent),
+    writeStore(db, 'kleros.lists.bw', data.lists),
+    writeStore(db, 'kleros.session.current', data.sessions.current),
+    writeStore(db, 'kleros.session.history', data.sessions.history),
+    writeStore(db, 'kleros.prefs', data.prefs),
   ])
 }

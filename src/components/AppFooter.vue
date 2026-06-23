@@ -12,7 +12,7 @@ const { entries: permanent } = usePermanentRoster()
 const { blackCount, whiteCount } = useBlackWhiteList()
 const { poolSize } = usePicker()
 const { totalPickedThisSession, history } = useSession()
-const { isConnected, fileLabel, connectFile, connectNewFile } = useFilePersistence()
+const { fileLabel } = useFilePersistence()
 
 const stats = computed(() => ({
   pool: poolSize.value,
@@ -23,14 +23,6 @@ const stats = computed(() => ({
   picked: totalPickedThisSession.value,
   historyCount: history.value.length,
 }))
-
-async function onFileClick() {
-  if (isConnected.value) return
-  const ok = await connectFile()
-  if (!ok) {
-    await connectNewFile()
-  }
-}
 </script>
 
 <template>
@@ -44,11 +36,8 @@ async function onFileClick() {
       <span>本会话已抽 <b>{{ stats.picked }}</b></span>
       <span>历史 <b>{{ stats.historyCount }}</b></span>
     </div>
-    <div class="app-footer__bottom">
-      <span class="app-footer__file-status" :class="{ connected: isConnected }" @click="onFileClick">
-        {{ isConnected ? `已绑定: ${fileLabel}` : '未绑定 JSON 文件 — 点击绑定' }}
-      </span>
+    <div class="app-footer__file-status">
+      {{ fileLabel }}
     </div>
-    <div class="text-subtle">Kleros v1.0</div>
   </footer>
 </template>

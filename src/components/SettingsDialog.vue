@@ -6,7 +6,7 @@ import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { useBlackWhiteList } from '@/composables/useBlackWhiteList'
 import { useSession } from '@/composables/useSession'
 import { useSettings } from '@/composables/useSettings'
-import { clearAllDB } from '@/composables/useDB'
+import { clearAllDB, deleteDB } from '@/composables/useDB'
 import { downloadExport } from '@/utils/export'
 import { readFileAsJSON, importData } from '@/utils/import'
 
@@ -26,7 +26,7 @@ function close() {
 function onClearAll() {
   void ui.askConfirm({
     title: '清空全部数据？',
-    message: '将删除临时/常驻名单、黑白名单、会话历史、用户偏好。此操作不可撤销。',
+    message: '将删除临时/常驻名单、黑白名单、会话历史、用户偏好，并开启一个新会话。此操作不可撤销。',
     danger: true,
     confirmText: '清空',
   }).then(ok => {
@@ -36,19 +36,28 @@ function onClearAll() {
     permanent.entries.value = []
     bw.list.value = { black: [], white: [] }
     session.clearAllHistory()
+    roster.ensureDefaultGroup()
     reset()
   })
+}
+
+function openDBInspect() {
+  ui.openModal('dbInspect')
 }
 
 function onClearCache() {
   void ui.askConfirm({
     title: '清除缓存？',
-    message: '将清除 IndexedDB 中所有 Kleros 数据，并刷新页面。适用于解决重名误报等缓存残留问题。',
+    message: '将彻底删除 IndexedDB 数据库，并刷新页面重建。适用于存储结构错乱、数据无法恢复等异常情况。此操作不可撤销。',
     danger: true,
     confirmText: '清除并刷新',
   }).then(async (ok) => {
     if (!ok) return
-    await clearAllDB()
+    try {
+      await deleteDB()
+    } catch (e) {
+      console.warn('deleteDB failed', e)
+    }
     window.location.reload()
   })
 }
@@ -188,10 +197,11 @@ function onImportClick() {
           <label class="field__label">高级</label>
           <div style="display: flex; flex-wrap: wrap; gap: 8px;">
             <button class="btn" @click="openGlobalRename">全局重命名…</button>
+            <button class="btn" @click="openDBInspect">查看 IndexedDB 内容</button>
             <button class="btn btn--danger" @click="onClearAll">清空全部数据</button>
             <button class="btn btn--danger" @click="onClearCache">清除缓存</button>
           </div>
-          <div class="field__hint">全局重命名：搜索 UID 匹配的人并批量替换 · 清除缓存：彻底抹除所有存储数据并刷新</div>
+          <div class="field__hint">查看 IndexedDB：实时显示 6 个 store 的内容 · 全局重命名：搜索 UID 匹配的人并批量替换 · 清除缓存：彻底抹除所有存储数据并刷新</div>
         </div>
       </div>
       <div class="modal__footer">

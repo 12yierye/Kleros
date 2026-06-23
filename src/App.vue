@@ -11,6 +11,8 @@ import { usePicker } from '@/composables/usePicker'
 import { useFilePersistence } from '@/composables/useFilePersistence'
 import { exportAllDB, dbReady } from '@/composables/useDB'
 import { DEFAULT_PREFERENCES } from '@/types/settings'
+import { setDebug } from '@/utils/debug'
+import { debug } from '@/utils/debug'
 import type { UserPreferences } from '@/types/settings'
 import type { RosterEntry, PermanentEntry } from '@/types/roster'
 import type { Session, SessionSummary } from '@/types/session'
@@ -26,6 +28,12 @@ import SettingsDialog from '@/components/SettingsDialog.vue'
 import RenameDialog from '@/components/RenameDialog.vue'
 import GlobalRenameDialog from '@/components/GlobalRenameDialog.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import DBInspectDialog from '@/components/DBInspectDialog.vue'
+
+if (typeof window !== 'undefined') {
+  const p = new URL(window.location.href).searchParams
+  if (p.get('debug') === '1') setDebug(true)
+}
 
 const ui = provideUi()
 const { prefs, update } = useSettings()
@@ -99,27 +107,44 @@ function debouncedSave() {
   saveTimer = setTimeout(async () => {
     const data = await exportAllDB()
     await filePersistence.saveToFile(data)
+    debug('app', `auto-save done, picks=${(data.sessions.current as Session)?.totalPicked ?? 0}`)
   }, 500)
 }
 
 onMounted(async () => {
+  debug('app', '======== STARTUP ========')
   await dbReady
+  debug('app', 'dbReady, starting session.init (IndexedDB)')
+
+  await session.init()
+
   await filePersistence.init()
   const data = await filePersistence.loadFromFile()
+
   if (data) {
-    rosterRefs.entries.value = data.roster.temporary as RosterEntry[]
-    permanentRefs.entries.value = data.roster.permanent as PermanentEntry[]
-    bwRefs.list.value = data.lists
-    sessionRefs.current.value = data.sessions.current as Session | null
-    sessionRefs.history.value = data.sessions.history as (Session | SessionSummary)[]
-    if (data.prefs) {
-      settingsRefs.prefs.value = {
-        ...DEFAULT_PREFERENCES,
-        ...(data.prefs as Partial<UserPreferences>),
+    const dbPicks = sessionRefs.history.value.reduce((sum, s) => sum + s.totalPicked, 0)
+    const history = (data.sessions.history as { totalPicked: number }[])
+    const filePicks = history.reduce((sum, s: { totalPicked: number }) => sum + (s.totalPicked ?? 0), 0)
+
+    debug('app', `compare: dbPicks=${dbPicks} vs filePicks=${filePicks}`)
+
+    if (filePicks > dbPicks) {
+      debug('app', 'backup newer, restoring from backup')
+      rosterRefs.entries.value = data.roster.temporary as RosterEntry[]
+      permanentRefs.entries.value = data.roster.permanent as PermanentEntry[]
+      bwRefs.list.value = data.lists
+      sessionRefs.current.value = data.sessions.current as Session | null
+      sessionRefs.history.value = data.sessions.history as (Session | SessionSummary)[]
+      if (data.prefs) {
+        settingsRefs.prefs.value = {
+          ...DEFAULT_PREFERENCES,
+          ...(data.prefs as Partial<UserPreferences>),
+        }
       }
+    } else {
+      debug('app', 'IndexedDB equal or newer, keeping IndexedDB')
     }
   }
-  await session.init()
 
   watch(
     [
@@ -140,6 +165,7 @@ onMounted(async () => {
   }
 
   window.addEventListener('keydown', handleKeydown)
+  debug('app', '======== STARTUP DONE ========')
 })
 
 onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
@@ -203,5 +229,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
     <RenameDialog />
     <GlobalRenameDialog />
     <ConfirmDialog />
+    <DBInspectDialog />
   </div>
 </template>

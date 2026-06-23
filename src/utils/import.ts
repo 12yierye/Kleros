@@ -63,22 +63,22 @@ export async function importData(json: string): Promise<ImportResult> {
   const writes: Promise<void>[] = []
 
   if (rosterTemp !== undefined) {
-    writes.push(writeDB(db, 'roster_temporary', rosterTemp))
+    writes.push(writeDB(db, 'kleros.roster.temporary', rosterTemp))
   }
   if (rosterPerm !== undefined) {
-    writes.push(writeDB(db, 'roster_permanent', rosterPerm))
+    writes.push(writeDB(db, 'kleros.roster.permanent', rosterPerm))
   }
   if (parsed.lists !== undefined) {
-    writes.push(writeDB(db, 'lists_bw', { black: listsBlack ?? [], white: listsWhite ?? [] }))
+    writes.push(writeDB(db, 'kleros.lists.bw', { black: listsBlack ?? [], white: listsWhite ?? [] }))
   }
   if (parsed.sessions !== undefined) {
-    writes.push(writeDB(db, 'session_current', sessionsCur ?? null))
+    writes.push(writeDB(db, 'kleros.session.current', sessionsCur ?? null))
     if (sessionsHist !== undefined) {
-      writes.push(writeDB(db, 'session_history', sessionsHist))
+      writes.push(writeDB(db, 'kleros.session.history', sessionsHist))
     }
   }
   if (parsed.prefs !== undefined) {
-    writes.push(writeDB(db, 'prefs', parsed.prefs))
+    writes.push(writeDB(db, 'kleros.prefs', parsed.prefs))
   }
 
   await Promise.all(writes)

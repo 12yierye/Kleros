@@ -107,7 +107,7 @@ export function useSession() {
 
   function clearAllHistory() {
     history.value = []
-    current.value = null
+    startNewSession()
   }
 
   function undoToPick(pickIndex: number): string[] | null {

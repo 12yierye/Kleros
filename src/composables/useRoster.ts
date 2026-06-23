@@ -54,11 +54,22 @@ export function useRoster() {
 
   function ensureDefaultGroup() {
     if (groups.value.length === 0) {
-      const g: RosterGroup = {
-        id: uid(UID_PREFIX.GROUP),
-        name: '临时名单',
+      const referencedIds = new Set<string>()
+      for (const e of entries.value) {
+        if (e.groupId) referencedIds.add(e.groupId)
       }
-      groups.value = [g]
+      if (referencedIds.size > 0) {
+        let n = 1
+        groups.value = [...referencedIds].map(id => ({
+          id,
+          name: referencedIds.size === 1 ? '临时名单' : `临时名单${n++}`,
+        }))
+      } else {
+        groups.value = [{
+          id: uid(UID_PREFIX.GROUP),
+          name: '临时名单',
+        }]
+      }
     }
     if (!groups.value.find(g => g.id === activeGroupId.value)) {
       activeGroupId.value = groups.value[0].id
@@ -66,7 +77,7 @@ export function useRoster() {
     const defaultId = groups.value[0].id
     let migrated = false
     for (const e of entries.value) {
-      if (!e.groupId) {
+      if (!e.groupId || !groups.value.find(g => g.id === e.groupId)) {
         e.groupId = defaultId
         migrated = true
       }

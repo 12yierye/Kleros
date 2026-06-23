@@ -583,24 +583,9 @@
   gap: var(--sp-4);
 }
 
-.app-footer__bottom {
-  display: flex;
-  align-items: center;
-}
-
 .app-footer__file-status {
-  cursor: pointer;
-  padding: 2px 8px;
-  border-radius: var(--r-sm);
-  transition: background var(--anim-duration);
-}
-
-.app-footer__file-status:hover {
-  background: rgba(0,0,0,.06);
-}
-
-.app-footer__file-status.connected {
-  color: var(--color-success);
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
 }
 
 /* === Empty state === */

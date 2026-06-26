@@ -8,7 +8,7 @@ import { usePermanentRoster } from './usePermanentRoster'
 import { useBlackWhiteList } from './useBlackWhiteList'
 import { useSession } from './useSession'
 import { useSettings } from './useSettings'
-import { buildCandidatePool, pickOne, pickMany, type CandidateItem } from '@/utils/pick'
+import { buildCandidatePool, pickOne, pickManyWithMutex, type CandidateItem } from '@/utils/pick'
 import type { PickMode } from '@/types/session'
 
 let _instance: ReturnType<typeof createPicker> | undefined
@@ -61,7 +61,7 @@ function createPicker() {
               const r = pickOne(available)
               return r ? [r] : []
             })()
-          : pickMany(available, opts.count)
+          : pickManyWithMutex(available, opts.count, current.value?.bindingGroups ?? [])
 
       await onAnimTick(results, prefs.value.animationSpeed)
 

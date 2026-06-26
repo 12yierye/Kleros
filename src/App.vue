@@ -29,6 +29,7 @@ import RenameDialog from '@/components/RenameDialog.vue'
 import GlobalRenameDialog from '@/components/GlobalRenameDialog.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DBInspectDialog from '@/components/DBInspectDialog.vue'
+import BindingGroupsDialog from '@/components/BindingGroupsDialog.vue'
 
 if (typeof window !== 'undefined') {
   const p = new URL(window.location.href).searchParams
@@ -230,5 +231,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
     <GlobalRenameDialog />
     <ConfirmDialog />
     <DBInspectDialog />
+    <BindingGroupsDialog />
   </div>
 </template>

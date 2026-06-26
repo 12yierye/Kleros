@@ -5,7 +5,8 @@
 
 import type { RosterEntry, PermanentEntry } from '@/types/roster'
 import type { BlackWhiteList } from '@/types/list'
-import type { Session } from '@/types/session'
+import type { Session, PickRecord } from '@/types/session'
+import type { BindingGroup } from '@/types/binding'
 import type { UserPreferences } from '@/types/settings'
 
 export interface CandidateInput {
@@ -66,7 +67,48 @@ export function buildCandidatePool(input: CandidateInput): CandidateItem[] {
     pool = pool.filter(p => !pickedSet.has(p.uid))
   }
 
+  // 6. 互斥组锁定过滤：本会话已被抽中成员的同组其他人排除
+  const groups = session.bindingGroups ?? []
+  if (groups.length > 0) {
+    const locked = getLockedUids(session.picks, groups)
+    if (locked.size > 0) {
+      pool = pool.filter(p => !locked.has(p.uid))
+    }
+  }
+
   return pool
+}
+
+/**
+ * 计算本会话已被「互斥锁定」的 uid 集合
+ * 对每个 pick 的每个 uid，遍历其所在组，把组内其他成员 uid 加入集合
+ */
+export function getLockedUids(
+  picks: PickRecord[],
+  groups: BindingGroup[]
+): Set<string> {
+  if (groups.length === 0) return new Set()
+  const uidToGroups = new Map<string, BindingGroup[]>()
+  for (const g of groups) {
+    for (const m of g.members) {
+      const arr = uidToGroups.get(m.uid)
+      if (arr) arr.push(g)
+      else uidToGroups.set(m.uid, [g])
+    }
+  }
+  const locked = new Set<string>()
+  for (const pick of picks) {
+    for (const uid of pick.uids) {
+      const gs = uidToGroups.get(uid)
+      if (!gs) continue
+      for (const g of gs) {
+        for (const member of g.members) {
+          if (member.uid !== uid) locked.add(member.uid)
+        }
+      }
+    }
+  }
+  return locked
 }
 
 /** Fisher-Yates 洗牌（返回新数组，不修改入参） */
@@ -84,6 +126,51 @@ export function pickMany(pool: CandidateItem[], n: number): CandidateItem[] {
   if (n <= 0 || pool.length === 0) return []
   const shuffled = shuffle(pool)
   return shuffled.slice(0, Math.min(n, shuffled.length))
+}
+
+/**
+ * 多抽 + 互斥组约束：本轮内同一互斥组最多出 1 人
+ * 不修改入参；不足时返回少于 n
+ */
+export function pickManyWithMutex(
+  pool: CandidateItem[],
+  n: number,
+  groups: BindingGroup[]
+): CandidateItem[] {
+  if (n <= 0 || pool.length === 0) return []
+  if (groups.length === 0) return pickMany(pool, n)
+
+  // uid → 该 uid 所在互斥组的 id 集合
+  const uidToGroupIds = new Map<string, Set<string>>()
+  for (const g of groups) {
+    for (const m of g.members) {
+      const s = uidToGroupIds.get(m.uid)
+      if (s) s.add(g.id)
+      else uidToGroupIds.set(m.uid, new Set([g.id]))
+    }
+  }
+
+  const shuffled = shuffle(pool)
+  const picked: CandidateItem[] = []
+  const usedGroupIds = new Set<string>()
+
+  for (const item of shuffled) {
+    if (picked.length >= n) break
+    const groupsOfItem = uidToGroupIds.get(item.uid)
+    let conflict = false
+    if (groupsOfItem) {
+      for (const gid of groupsOfItem) {
+        if (usedGroupIds.has(gid)) { conflict = true; break }
+      }
+    }
+    if (conflict) continue
+    picked.push(item)
+    if (groupsOfItem) {
+      for (const gid of groupsOfItem) usedGroupIds.add(gid)
+    }
+  }
+
+  return picked
 }
 
 /** 从池中抽取 1 个 */

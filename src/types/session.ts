@@ -7,6 +7,7 @@
  */
 
 import type { RosterEntry, RosterGroup } from './roster'
+import type { BindingGroup } from './binding'
 
 export type PickMode = 'single' | 'multi'
 
@@ -38,6 +39,8 @@ export interface Session {
   blacklist: string[]
   /** 白名单快照 */
   whitelist: string[]
+  /** 互斥组快照（缺省视为 []） */
+  bindingGroups: BindingGroup[]
 }
 
 /** 概要会话（历史压缩模式，丢弃 picks 和名单明细） */

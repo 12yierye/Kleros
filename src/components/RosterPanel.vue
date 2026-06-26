@@ -3,14 +3,40 @@ import { ref, computed } from 'vue'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { useBlackWhiteList } from '@/composables/useBlackWhiteList'
+import { useBindingGroups } from '@/composables/useBindingGroups'
 import { useUi } from '@/composables/useUi'
 import NameChip from './NameChip.vue'
 import type { RosterEntry, PermanentEntry } from '@/types/roster'
+import type { BindingGroup } from '@/types/binding'
 
 const roster = useRoster()
 const { entries: permanent, add: addPermanent, remove: removePermanent } = usePermanentRoster()
 const { isBlack } = useBlackWhiteList()
+const bindingGroups = useBindingGroups()
 const ui = useUi()
+
+function openBindingGroups() {
+  ui.openModal('bindingGroups')
+}
+
+function groupsForUidOrdered(uid: string): BindingGroup[] {
+  return bindingGroups.getGroupsForUidByAddedAt(uid)
+}
+
+/**
+ * 若该 roster 的所有当前 uid 都被纳入同一组 G，返回 G；否则返回 null
+ * 多个 G 同时满足时取 createdAt 最早的
+ */
+function groupForRosterAllMembers(rosterGroupId: string): BindingGroup | null {
+  const uids = roster.entries.value.filter(e => e.groupId === rosterGroupId).map(e => e.uid)
+  if (uids.length === 0) return null
+  const candidates = bindingGroups.groups.value.filter(g => {
+    const memberSet = new Set(g.members.map(m => m.uid))
+    return uids.every(u => memberSet.has(u))
+  })
+  if (candidates.length === 0) return null
+  return [...candidates].sort((a, b) => a.createdAt - b.createdAt)[0]
+}
 
 const permanentInput = ref('')
 
@@ -187,6 +213,15 @@ function permanentCtx(entry: PermanentEntry) {
         <input type="checkbox" v-model="roster.crossGroup.value" />
         我全都要
       </label>
+      <span style="flex: 1 1 auto;"></span>
+      <button
+        class="btn"
+        style="font-size: 12px; padding: 4px 10px;"
+        @click="openBindingGroups"
+        :title="`已建 ${bindingGroups.groups.value.length} 个互斥组`"
+      >
+        互斥组{{ bindingGroups.groups.value.length > 0 ? ` (${bindingGroups.groups.value.length})` : '' }}
+      </button>
     </div>
 
     <template v-for="(group, gi) in roster.groups.value" :key="group.id">
@@ -206,6 +241,16 @@ function permanentCtx(entry: PermanentEntry) {
             </template>
             <template v-else>
               <b :style="{ color: roster.activeGroupId.value === group.id ? 'var(--color-primary)' : 'inherit', cursor: 'pointer' }" @click="roster.setActiveGroup(group.id)">{{ group.name }}</b>
+              <span
+                v-if="groupForRosterAllMembers(group.id)"
+                class="bg-dot bg-dot--inline"
+              >
+                <span class="bg-dot__ball" :style="{ background: groupForRosterAllMembers(group.id)!.color }"></span>
+                <span class="bg-dot__tip" role="tooltip">
+                  <span class="bg-dot__tip-swatch" :style="{ background: groupForRosterAllMembers(group.id)!.color }"></span>
+                  <span>{{ groupForRosterAllMembers(group.id)!.name }}</span>
+                </span>
+              </span>
               <span class="text-muted" style="font-size: 12px;">({{ roster.entries.value.filter(e => e.groupId === group.id).length }})</span>
             </template>
           </div>
@@ -263,19 +308,34 @@ function permanentCtx(entry: PermanentEntry) {
 
         <div v-if="roster.entries.value.filter(e => e.groupId === group.id).length === 0" class="empty">此分组还没有成员</div>
         <div v-else class="chip-list">
-          <NameChip
+          <div
             v-for="e in roster.entries.value.filter(e => e.groupId === group.id)"
             :key="e.uid"
-            :name="e.name"
-            :picked="e.pickedThisSession"
-            :blocked="isBlack(e.name)"
-            :selectable="batchGroupId === group.id"
-            :checked="batchSelected.has(e.uid)"
-            @contextmenu.prevent="rosterCtx(e)"
-            @rename="rosterCtx(e)"
-            @promote="onPromoteOne(e)"
-            @check="toggleBatchSelect(e.uid)"
-          />
+            class="chip-item"
+          >
+            <NameChip
+              :name="e.name"
+              :picked="e.pickedThisSession"
+              :blocked="isBlack(e.name)"
+              :selectable="batchGroupId === group.id"
+              :checked="batchSelected.has(e.uid)"
+              @contextmenu.prevent="rosterCtx(e)"
+              @rename="rosterCtx(e)"
+              @promote="onPromoteOne(e)"
+              @check="toggleBatchSelect(e.uid)"
+            />
+            <span
+              v-for="g in groupsForUidOrdered(e.uid)"
+              :key="g.id"
+              class="bg-dot"
+            >
+              <span class="bg-dot__ball" :style="{ background: g.color }"></span>
+              <span class="bg-dot__tip" role="tooltip">
+                <span class="bg-dot__tip-swatch" :style="{ background: g.color }"></span>
+                <span>{{ g.name }}</span>
+              </span>
+            </span>
+          </div>
         </div>
       </div>
       <hr v-if="gi < roster.groups.value.length - 1" style="border: none; border-top: 1px solid var(--color-border); margin: 0 0 16px 0;" />

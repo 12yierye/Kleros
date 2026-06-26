@@ -49,6 +49,7 @@ export function useSession() {
       rosterGroups: [],
       blacklist: [],
       whitelist: [],
+      bindingGroups: [],
     }
     current.value = session
     history.value = [session, ...history.value]

@@ -11,6 +11,7 @@ export type ModalKind =
   | 'rename'
   | 'globalRename'
   | 'dbInspect'
+  | 'bindingGroups'
   | 'confirm'
   | null
 

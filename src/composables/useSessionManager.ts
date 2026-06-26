@@ -50,6 +50,28 @@ export function useSessionManager() {
     { deep: true, flush: 'sync' }
   )
 
+  function migrateBindingGroups(target: { bindingGroups: unknown }): void {
+    if (!Array.isArray(target.bindingGroups)) {
+      target.bindingGroups = []
+      return
+    }
+    type Old = { id: string; name: string; color: string; memberUids: string[]; createdAt: number }
+    type New = { id: string; name: string; color: string; members: { uid: string; addedAt: number }[]; createdAt: number }
+    target.bindingGroups = (target.bindingGroups as Array<Old | New>).map((g): New => {
+      const anyG = g as Old & New
+      if (Array.isArray((anyG as New).members)) return anyG as New
+      const memberUids = Array.isArray((anyG as Old).memberUids) ? (anyG as Old).memberUids : []
+      const createdAt = typeof anyG.createdAt === 'number' ? anyG.createdAt : Date.now()
+      return {
+        id: anyG.id,
+        name: anyG.name,
+        color: anyG.color,
+        members: memberUids.map(uid => ({ uid, addedAt: createdAt })),
+        createdAt,
+      }
+    })
+  }
+
   function switchSession(id: string) {
     saveSnapshot()
     if (session.current.value) {
@@ -57,6 +79,7 @@ export function useSessionManager() {
     }
     const target = session.history.value.find(s => s.id === id)
     if (!target || !isFullSession(target)) return
+    migrateBindingGroups(target as { bindingGroups: unknown })
     session.current.value = target
     roster.value = JSON.parse(JSON.stringify(target.roster || []))
     groups.value = JSON.parse(JSON.stringify(target.rosterGroups || []))
@@ -96,6 +119,7 @@ export function useSessionManager() {
         ensureDefaultGroup()
       } else {
         debug('session', `restoring session ${mostRecent.id} picks=${mostRecent.picks.length} roster=${(mostRecent.roster || []).length}`)
+        migrateBindingGroups(mostRecent as { bindingGroups: unknown })
         session.current.value = mostRecent
         roster.value = JSON.parse(JSON.stringify(mostRecent.roster || []))
         groups.value = JSON.parse(JSON.stringify(mostRecent.rosterGroups || []))

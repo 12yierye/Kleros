@@ -45,7 +45,7 @@ watch(isPicking, (val) => {
         pulseName.value = scrollingItem.value.name
         scrollingItem.value = null
       } else if (lastResults.value.length > 0) {
-        pulseName.value = lastResults.value[lastResults.value.length - 1].name
+        pulseName.value = lastResults.value.map(r => r.name).join(' · ')
       }
     }
   }
@@ -58,7 +58,7 @@ watch(() => picks.value.length, (len, oldLen) => {
     } else {
       const lastPick = picks.value[picks.value.length - 1]
       if (lastPick && lastPick.uids.length > 0) {
-        pulseName.value = resolveName(lastPick.uids[lastPick.uids.length - 1])
+        pulseName.value = lastPick.uids.map(resolveName).join(' · ')
       }
     }
   }

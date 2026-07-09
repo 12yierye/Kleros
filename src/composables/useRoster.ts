@@ -59,10 +59,9 @@ export function useRoster() {
         if (e.groupId) referencedIds.add(e.groupId)
       }
       if (referencedIds.size > 0) {
-        let n = 1
-        groups.value = [...referencedIds].map(id => ({
+        groups.value = [...referencedIds].map((id, i) => ({
           id,
-          name: referencedIds.size === 1 ? '临时名单' : `临时名单${n++}`,
+          name: i === 0 ? '临时名单' : `临时名单${i + 1}`,
         }))
       } else {
         groups.value = [{

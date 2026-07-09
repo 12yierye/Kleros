@@ -23,21 +23,6 @@ function groupsForUidOrdered(uid: string): BindingGroup[] {
   return bindingGroups.getGroupsForUidByAddedAt(uid)
 }
 
-/**
- * 若该 roster 的所有当前 uid 都被纳入同一组 G，返回 G；否则返回 null
- * 多个 G 同时满足时取 createdAt 最早的
- */
-function groupForRosterAllMembers(rosterGroupId: string): BindingGroup | null {
-  const uids = roster.entries.value.filter(e => e.groupId === rosterGroupId).map(e => e.uid)
-  if (uids.length === 0) return null
-  const candidates = bindingGroups.groups.value.filter(g => {
-    const memberSet = new Set(g.members.map(m => m.uid))
-    return uids.every(u => memberSet.has(u))
-  })
-  if (candidates.length === 0) return null
-  return [...candidates].sort((a, b) => a.createdAt - b.createdAt)[0]
-}
-
 const permanentInput = ref('')
 
 const editingGroupId = ref<string | null>(null)
@@ -152,6 +137,28 @@ const otherGroups = computed(() =>
   roster.groups.value.filter(g => g.id !== batchGroupId.value)
 )
 
+/** 缓存每个分组的互斥组绑定结果，避免模板中重复计算 */
+const rosterGroupBindings = computed(() => {
+  const map = new Map<string, BindingGroup | null>()
+  for (const g of roster.groups.value) {
+    const uids = roster.entries.value.filter(e => e.groupId === g.id).map(e => e.uid)
+    if (uids.length === 0) {
+      map.set(g.id, null)
+      continue
+    }
+    const candidates = bindingGroups.groups.value.filter(bg => {
+      const memberSet = new Set(bg.members.map(m => m.uid))
+      return uids.every(u => memberSet.has(u))
+    })
+    if (candidates.length === 0) {
+      map.set(g.id, null)
+    } else {
+      map.set(g.id, [...candidates].sort((a, b) => a.createdAt - b.createdAt)[0])
+    }
+  }
+  return map
+})
+
 function onPromoteOne(entry: RosterEntry) {
   const snap = roster.promoteToPermanent(entry.uid)
   if (snap) {
@@ -242,13 +249,13 @@ function permanentCtx(entry: PermanentEntry) {
             <template v-else>
               <b :style="{ color: roster.activeGroupId.value === group.id ? 'var(--color-primary)' : 'inherit', cursor: 'pointer' }" @click="roster.setActiveGroup(group.id)">{{ group.name }}</b>
               <span
-                v-if="groupForRosterAllMembers(group.id)"
+                v-if="rosterGroupBindings.get(group.id)"
                 class="bg-dot bg-dot--inline"
               >
-                <span class="bg-dot__ball" :style="{ background: groupForRosterAllMembers(group.id)!.color }"></span>
+                <span class="bg-dot__ball" :style="{ background: rosterGroupBindings.get(group.id)!.color }"></span>
                 <span class="bg-dot__tip" role="tooltip">
-                  <span class="bg-dot__tip-swatch" :style="{ background: groupForRosterAllMembers(group.id)!.color }"></span>
-                  <span>{{ groupForRosterAllMembers(group.id)!.name }}</span>
+                  <span class="bg-dot__tip-swatch" :style="{ background: rosterGroupBindings.get(group.id)!.color }"></span>
+                  <span>{{ rosterGroupBindings.get(group.id)!.name }}</span>
                 </span>
               </span>
               <span class="text-muted" style="font-size: 12px;">({{ roster.entries.value.filter(e => e.groupId === group.id).length }})</span>

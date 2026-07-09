@@ -6,9 +6,10 @@ import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { useBlackWhiteList } from '@/composables/useBlackWhiteList'
 import { useSession } from '@/composables/useSession'
 import { useSettings } from '@/composables/useSettings'
-import { clearAllDB, deleteDB } from '@/composables/useDB'
+import { deleteDB } from '@/composables/useDB'
 import { downloadExport } from '@/utils/export'
-import { readFileAsJSON, importData } from '@/utils/import'
+import { importData } from '@/utils/import'
+import { readFileAsText } from '@/utils/nameParser'
 
 const ui = useUi()
 const roster = useRoster()
@@ -78,7 +79,7 @@ function onImportClick() {
     const file = input.files?.[0]
     if (!file) return
     try {
-      const text = await readFileAsJSON(file)
+      const text = await readFileAsText(file)
       void ui.askConfirm({
         title: '导入数据？',
         message: '将覆盖全部现有数据（临时/常驻/黑白名单/会话/偏好），不可撤销。确定导入？',

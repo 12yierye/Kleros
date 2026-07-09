@@ -94,12 +94,3 @@ function writeDB(db: IDBDatabase, storeName: string, value: unknown): Promise<vo
     tx.onerror = () => reject(tx.error)
   })
 }
-
-export function readFileAsJSON(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result ?? ''))
-    reader.onerror = () => reject(reader.error)
-    reader.readAsText(file, 'utf-8')
-  })
-}

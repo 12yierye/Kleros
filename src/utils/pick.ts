@@ -1,53 +1,50 @@
 /**
  * 抽取算法
- * 核心：候选池计算 + Fisher-Yates 洗牌抽样
+ * 核心：候选池计算 + 抽签单元（绑定小组）+ Fisher-Yates 洗牌抽样
  */
 
 import type { RosterEntry, PermanentEntry } from '@/types/roster'
 import type { BlackWhiteList } from '@/types/list'
-import type { Session, PickRecord } from '@/types/session'
-import type { BindingGroup } from '@/types/binding'
-import type { UserPreferences } from '@/types/settings'
+import type { Round } from '@/types/session'
+import type { Bundle } from '@/types/bundle'
+import type { DrawMode, UserPreferences } from '@/types/settings'
 
 export interface CandidateInput {
   roster: RosterEntry[]
   permanent: PermanentEntry[]
   list: BlackWhiteList
-  session: Session
+  session: Round
   prefs: UserPreferences
 }
 
 export interface CandidateItem {
   uid: string
   name: string
-  /** 来源：临时或常驻（用于决定抽中后的样式 / 行为） */
+  /** 来源：当前名单或名册 */
   from: 'roster' | 'permanent'
 }
 
-/** 构建候选池（去重按 UID） */
+/** 构建候选池 */
 export function buildCandidatePool(input: CandidateInput): CandidateItem[] {
   const { roster, permanent, list, session, prefs } = input
 
   // 1. 合并
   const all: CandidateItem[] = [
-    ...roster.map<CandidateItem>(r => ({
-      uid: r.uid,
-      name: r.name,
-      from: 'roster',
-    })),
-    ...permanent.map<CandidateItem>(p => ({
-      uid: p.uid,
-      name: p.name,
-      from: 'permanent',
-    })),
+    ...roster.map<CandidateItem>(r => ({ uid: r.uid, name: r.name, from: 'roster' })),
+    ...permanent.map<CandidateItem>(p => ({ uid: p.uid, name: p.name, from: 'permanent' })),
   ]
 
-  // 2. 按 UID 去重（同名不同 UID 都保留）
-  const uidMap = new Map<string, CandidateItem>()
+  // 2. 合并去重：同一人可能同时存在于当前名单和名册，按名字只保留一份
+  const seenNames = new Set<string>()
+  const uidToName = new Map<string, string>()
+  const merged: CandidateItem[] = []
   for (const item of all) {
-    if (!uidMap.has(item.uid)) uidMap.set(item.uid, item)
+    uidToName.set(item.uid, item.name)
+    if (seenNames.has(item.name)) continue
+    seenNames.add(item.name)
+    merged.push(item)
   }
-  let pool = Array.from(uidMap.values())
+  let pool = merged
 
   // 3. 过滤黑名单（按 name 匹配）
   if (list.black.length > 0) {
@@ -61,54 +58,34 @@ export function buildCandidatePool(input: CandidateInput): CandidateItem[] {
     pool = pool.filter(p => whiteSet.has(p.name))
   }
 
-  // 5. 本会话已抽过滤
+  const bundles = session.bundles ?? []
+
+  // 5. 本轮已抽过滤
+  const pickedUids = new Set<string>()
+  const pickedNames = new Set<string>()
   if (prefs.noRepeatInSession) {
-    const pickedSet = new Set(session.picks.flatMap(p => p.uids))
-    pool = pool.filter(p => !pickedSet.has(p.uid))
-  }
-
-  // 6. 互斥组锁定过滤：本会话已被抽中成员的同组其他人排除
-  const groups = session.bindingGroups ?? []
-  if (groups.length > 0) {
-    const locked = getLockedUids(session.picks, groups)
-    if (locked.size > 0) {
-      pool = pool.filter(p => !locked.has(p.uid))
+    for (const u of session.picks.flatMap(p => p.uids)) {
+      pickedUids.add(u)
+      const n = uidToName.get(u)
+      if (n) pickedNames.add(n)
     }
   }
 
-  return pool
-}
+  // 按小组抽时，小组全有或全无：组里只要有人本轮已被抽中，整组不再出现，绝不拆成单人。
+  // 按人抽时小组只是属性，不参与筛选。
+  const blockedUids = new Set<string>()
+  if (prefs.drawMode === 'group') {
+    for (const b of bundles) {
+      const touched = b.members.some(
+        m => pickedUids.has(m.uid) || pickedNames.has(uidToName.get(m.uid) ?? '')
+      )
+      if (touched) b.members.forEach(m => blockedUids.add(m.uid))
+    }
+  }
 
-/**
- * 计算本会话已被「互斥锁定」的 uid 集合
- * 对每个 pick 的每个 uid，遍历其所在组，把组内其他成员 uid 加入集合
- */
-export function getLockedUids(
-  picks: PickRecord[],
-  groups: BindingGroup[]
-): Set<string> {
-  if (groups.length === 0) return new Set()
-  const uidToGroups = new Map<string, BindingGroup[]>()
-  for (const g of groups) {
-    for (const m of g.members) {
-      const arr = uidToGroups.get(m.uid)
-      if (arr) arr.push(g)
-      else uidToGroups.set(m.uid, [g])
-    }
-  }
-  const locked = new Set<string>()
-  for (const pick of picks) {
-    for (const uid of pick.uids) {
-      const gs = uidToGroups.get(uid)
-      if (!gs) continue
-      for (const g of gs) {
-        for (const member of g.members) {
-          if (member.uid !== uid) locked.add(member.uid)
-        }
-      }
-    }
-  }
-  return locked
+  return pool.filter(
+    p => !pickedUids.has(p.uid) && !pickedNames.has(p.name) && !blockedUids.has(p.uid)
+  )
 }
 
 /** Fisher-Yates 洗牌（返回新数组，不修改入参） */
@@ -121,60 +98,73 @@ export function shuffle<T>(arr: readonly T[]): T[] {
   return a
 }
 
-/** 从池中抽取 N 个不重复的人，N > 池大小时返回池中全部 */
-export function pickMany(pool: CandidateItem[], n: number): CandidateItem[] {
-  if (n <= 0 || pool.length === 0) return []
-  const shuffled = shuffle(pool)
-  return shuffled.slice(0, Math.min(n, shuffled.length))
+/** 抽签单元：绑定小组是一个多人单元，其他人各自成单元 */
+export interface PickUnit {
+  items: CandidateItem[]
+  bundleId?: string
+}
+
+export function buildUnits(pool: CandidateItem[], bundles: Bundle[]): PickUnit[] {
+  const byUid = new Map(pool.map(p => [p.uid, p]))
+  const used = new Set<string>()
+  const units: PickUnit[] = []
+
+  for (const b of bundles) {
+    const items = b.members
+      .map(m => byUid.get(m.uid))
+      .filter((x): x is CandidateItem => !!x)
+    // 只剩一个人就不构成小组
+    if (items.length < 2) continue
+    items.forEach(i => used.add(i.uid))
+    units.push({ items, bundleId: b.id })
+  }
+
+  for (const p of pool) {
+    if (!used.has(p.uid)) units.push({ items: [p] })
+  }
+  return units
 }
 
 /**
- * 多抽 + 互斥组约束：本轮内同一互斥组最多出 1 人
- * 不修改入参；不足时返回少于 n
+ * 按口径抽取 N 个名额。
+ * - person：直接洗牌取 N 人，忽略小组
+ * - group：以小组为抽签单元（见 pickUnits）
  */
-export function pickManyWithMutex(
+export function pickFrom(
   pool: CandidateItem[],
   n: number,
-  groups: BindingGroup[]
+  bundles: Bundle[],
+  mode: DrawMode
 ): CandidateItem[] {
   if (n <= 0 || pool.length === 0) return []
-  if (groups.length === 0) return pickMany(pool, n)
+  if (mode === 'person') return shuffle(pool).slice(0, n)
+  return pickUnits(pool, n, bundles)
+}
 
-  // uid → 该 uid 所在互斥组的 id 集合
-  const uidToGroupIds = new Map<string, Set<string>>()
-  for (const g of groups) {
-    for (const m of g.members) {
-      const s = uidToGroupIds.get(m.uid)
-      if (s) s.add(g.id)
-      else uidToGroupIds.set(m.uid, new Set([g.id]))
-    }
-  }
+/**
+ * 按小组抽取 N 个名额。
+ * - 绑定小组整体入选，占 members.length 个名额
+ * - 单抽（n=1）抽到小组时整组一起出
+ */
+export function pickUnits(
+  pool: CandidateItem[],
+  n: number,
+  bundles: Bundle[]
+): CandidateItem[] {
+  if (n <= 0 || pool.length === 0) return []
 
-  const shuffled = shuffle(pool)
+  const units = buildUnits(pool, bundles)
   const picked: CandidateItem[] = []
-  const usedGroupIds = new Set<string>()
 
-  for (const item of shuffled) {
+  for (const unit of shuffle(units)) {
     if (picked.length >= n) break
-    const groupsOfItem = uidToGroupIds.get(item.uid)
-    let conflict = false
-    if (groupsOfItem) {
-      for (const gid of groupsOfItem) {
-        if (usedGroupIds.has(gid)) { conflict = true; break }
-      }
-    }
-    if (conflict) continue
-    picked.push(item)
-    if (groupsOfItem) {
-      for (const gid of groupsOfItem) usedGroupIds.add(gid)
-    }
+
+    const fits = picked.length + unit.items.length <= n
+    // 单抽时允许整组超额出（2 人小组 → 一次抽中 2 人）
+    if (!fits && !(n === 1 && picked.length === 0)) continue
+
+    picked.push(...unit.items)
   }
 
   return picked
-}
-
-/** 从池中抽取 1 个 */
-export function pickOne(pool: CandidateItem[]): CandidateItem | null {
-  if (pool.length === 0) return null
-  return pool[Math.floor(Math.random() * pool.length)]
 }

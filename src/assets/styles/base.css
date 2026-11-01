@@ -1,28 +1,29 @@
 /* === CSS Variables === */
 :root {
-  /* Color palette */
-  --color-bg: #f7f8fa;
+  /* Color palette —— 参考 VSCode 浅色：灰白分层 + 克制的蓝 */
+  --color-bg-chrome: #f0f0f0;
+  --color-bg: #f5f5f5;
   --color-bg-elev: #ffffff;
-  --color-bg-sunken: #eef0f4;
-  --color-border: #e3e6eb;
-  --color-border-strong: #c9ced6;
+  --color-bg-sunken: #e9e9e9;
+  --color-border: #e2e2e2;
+  --color-border-strong: #c6c6c6;
 
-  --color-text: #1c2128;
-  --color-text-muted: #6a7180;
-  --color-text-subtle: #9aa0aa;
+  --color-text: #2b2b2b;
+  --color-text-muted: #616161;
+  --color-text-subtle: #8b8b8b;
 
-  --color-primary: #4f6bff;
-  --color-primary-hover: #3d58e6;
-  --color-primary-soft: #eaeefe;
+  --color-primary: #005fb8;
+  --color-primary-hover: #00529f;
+  --color-primary-soft: #dfe9f4;
 
-  --color-success: #2bb673;
-  --color-warning: #e7a23b;
-  --color-danger: #e5484d;
-  --color-danger-soft: #fdecee;
+  --color-success: #157347;
+  --color-warning: #b26a00;
+  --color-danger: #c22b2b;
+  --color-danger-soft: #fbeaea;
 
   --color-chip-bg: #ffffff;
-  --color-chip-bg-hover: #f1f3f7;
-  --color-chip-picked: #d6f5e3;
+  --color-chip-bg-hover: #efefef;
+  --color-chip-picked: #e3efe6;
 
   /* Typography */
   --font-sans: "Nunito", -apple-system, BlinkMacSystemFont, "PingFang SC",
@@ -57,10 +58,10 @@
   --r-full: 9999px;
 
   /* Shadow */
-  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --sh-md: 0 2px 8px rgba(0, 0, 0, 0.06);
-  --sh-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
-  --sh-overlay: 0 16px 48px rgba(0, 0, 0, 0.18);
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --sh-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --sh-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --sh-overlay: 0 16px 48px rgba(0, 0, 0, 0.22);
 
   /* Z-index */
   --z-sticky: 100;
@@ -71,10 +72,66 @@
   --header-h: 56px;
   --footer-h: 36px;
   --side-w: 280px;
-  --side-w-collapsed: 0px;
+  --side-w-rail: 56px;
 
   /* Animation */
   --anim-duration: 0.25s;
+
+  /* Feedback tints */
+  --color-ok-soft: #e8f3ec;
+  --color-ok-text: #1a7f4b;
+  --color-warn-soft: #fdf1e0;
+  --color-warn-text: #96620a;
+
+  /* 浮层（下拉 / 提示） */
+  --color-bg-pop: #ffffff;
+  --tip-bg: #202020;
+  --tip-fg: #ffffff;
+
+  color-scheme: light;
+}
+
+/* === Dark theme（中性灰，无蓝色偏色）=== */
+[data-theme="dark"] {
+  --color-bg-chrome: #181818;
+  --color-bg: #1b1b1b;
+  --color-bg-elev: #202020;
+  --color-bg-sunken: #141414;
+  --color-border: #2e2e2e;
+  --color-border-strong: #3f3f3f;
+
+  --color-text: #cccccc;
+  --color-text-muted: #9a9a9a;
+  --color-text-subtle: #6e6e6e;
+
+  --color-primary: #0078d4;
+  --color-primary-hover: #1a86dc;
+  --color-primary-soft: #10344d;
+
+  --color-success: #4ec97f;
+  --color-warning: #d7a750;
+  --color-danger: #f14c4c;
+  --color-danger-soft: #3a1d1d;
+
+  --color-chip-bg: #262626;
+  --color-chip-bg-hover: #303030;
+  --color-chip-picked: #1e3a26;
+
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --sh-md: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --sh-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --sh-overlay: 0 16px 48px rgba(0, 0, 0, 0.65);
+
+  --color-ok-soft: #16281f;
+  --color-ok-text: #5fd39b;
+  --color-warn-soft: #2b2317;
+  --color-warn-text: #e0ab5c;
+
+  --color-bg-pop: #252526;
+  --tip-bg: #3c3c3c;
+  --tip-fg: #f0f0f0;
+
+  color-scheme: dark;
 }
 
 /* === Reset === */
@@ -92,6 +149,10 @@ body,
   padding: 0;
 }
 
+html {
+  background: var(--color-bg);
+}
+
 body {
   font-family: var(--font-sans);
   font-size: var(--fs-base);
@@ -100,6 +161,36 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* === Scrollbar === */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border: 3px solid transparent;
+  border-radius: var(--r-full);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-subtle);
+  border: 3px solid transparent;
+  background-clip: content-box;
 }
 
 button {

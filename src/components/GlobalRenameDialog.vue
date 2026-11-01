@@ -3,13 +3,11 @@ import { ref, computed, watch } from 'vue'
 import { useUi } from '@/composables/useUi'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
-import { useSession } from '@/composables/useSession'
 import { useBlackWhiteList } from '@/composables/useBlackWhiteList'
 
 const ui = useUi()
 const roster = useRoster()
 const permanent = usePermanentRoster()
-const session = useSession()
 const bw = useBlackWhiteList()
 
 const oldName = ref('')
@@ -120,7 +118,7 @@ function confirm() {
               <input type="checkbox" v-model="m.selected" />
               <span>
                 {{ m.currentName }}
-                <span class="text-subtle">({{ m.from === 'roster' ? '临时' : '常驻' }})</span>
+                <span class="text-subtle">({{ m.from === 'roster' ? '当前名单' : '名册' }})</span>
               </span>
             </li>
           </ul>
@@ -131,7 +129,7 @@ function confirm() {
         <div class="field">
           <label class="checkbox">
             <input type="checkbox" v-model="updateHistory" />
-            同时修改历史会话中抽中此人的记录（按 UID 匹配；UID 不变，记录继续有效）
+            同时修改历史记录中抽中此人的条目（按 UID 匹配；UID 不变，记录继续有效）
           </label>
           <label class="checkbox">
             <input type="checkbox" v-model="updateBlackWhite" />

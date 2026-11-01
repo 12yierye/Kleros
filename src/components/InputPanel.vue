@@ -3,9 +3,20 @@ import { ref, computed } from 'vue'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { parseNamesFromText, parseNamesFromCSV, readFileAsText } from '@/utils/nameParser'
+import type { PermanentGroup } from '@/types/roster'
 
 const roster = useRoster()
-const { addMany: addManyPermanent } = usePermanentRoster()
+const lib = usePermanentRoster()
+
+const bookList = computed(() => lib.groups.value.filter(g => g.members.length > 0))
+
+function addFromBook(g: PermanentGroup) {
+  const r = roster.addMany(g.members.map(m => m.name))
+  showMsg(
+    r.added > 0 ? 'ok' : 'warn',
+    r.added > 0 ? `已从「${g.name}」加入 ${r.added} 人` : `「${g.name}」里的人都已经在当前名单`
+  )
+}
 
 type Tab = 'paste' | 'manual' | 'file'
 const tab = ref<Tab>('paste')
@@ -14,7 +25,6 @@ const pasteText = ref('')
 const manualText = ref('')
 const message = ref<{ kind: 'ok' | 'warn'; text: string } | null>(null)
 
-const showGroupDropdown = ref(false)
 
 function showMsg(kind: 'ok' | 'warn', text: string) {
   message.value = { kind, text }
@@ -69,44 +79,18 @@ async function onFile(e: Event) {
   }
 }
 
-function onNewGroup() {
-  roster.addGroup()
-}
-
-function selectGroup(id: string) {
-  roster.setActiveGroup(id)
-  showGroupDropdown.value = false
-}
-
-const activeGroupName = computed(() => {
-  const g = roster.groups.value.find(g => g.id === roster.activeGroupId.value)
-  return g ? g.name : '临时名单'
-})
 </script>
 
 <template>
-  <section class="main-section">
-    <div class="main-section__title">
-      <span>数据输入</span>
-    </div>
-
-    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
-      <span class="text-muted" style="font-size: 13px;">添加到:</span>
-      <div style="position: relative;">
-        <button class="btn" style="font-size: 13px; padding: 4px 10px;" @click="showGroupDropdown = !showGroupDropdown">
-          {{ activeGroupName }} ▾
-        </button>
-        <div v-if="showGroupDropdown" style="position: absolute; top: 100%; left: 0; margin-top: 2px; background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); z-index: 50; min-width: 140px;">
-          <button
-            v-for="g in roster.groups.value" :key="g.id"
-            class="btn btn--ghost"
-            :style="{ display: 'block', width: '100%', textAlign: 'left', fontSize: '13px', padding: '5px 12px', borderRadius: '0', fontWeight: g.id === roster.activeGroupId.value ? '600' : '400' }"
-            @click="selectGroup(g.id)"
-          >{{ g.name }}</button>
-        </div>
-        <div v-if="showGroupDropdown" style="position: fixed; inset: 0; z-index: 40;" @click="showGroupDropdown = false" />
-      </div>
-      <button class="btn" style="font-size: 12px; padding: 4px 10px;" @click="onNewGroup">+ 新建名单</button>
+  <div class="add-block">
+    <div v-if="bookList.length > 0" class="add-from-book">
+      <span class="add-from-book__label">从名册加入</span>
+      <button
+        v-for="g in bookList"
+        :key="g.id"
+        class="btn btn--xs"
+        @click="addFromBook(g)"
+      >{{ g.name }} · {{ g.members.length }}</button>
     </div>
 
     <div class="tabs">
@@ -131,7 +115,7 @@ const activeGroupName = computed(() => {
       <textarea
         v-model="pasteText"
         class="textarea"
-        placeholder="支持换行、中英文逗号/分号、Tab、连续空格分隔。例如：&#10;张三&#10;李四, 王五;赵六&#10;孙七 周八"
+        placeholder="空行 空格 逗号 分号 制表符 均可分隔"
       />
       <div style="display: flex; gap: 8px; margin-top: 8px;">
         <button class="btn btn--primary" @click="onAddToRoster" :disabled="!pasteText.trim()">
@@ -151,7 +135,7 @@ const activeGroupName = computed(() => {
         />
         <button class="btn btn--primary" @click="onAddOneManual" :disabled="!manualText.trim()">加入</button>
       </div>
-      <div class="text-subtle" style="font-size: 12px; margin-top: 6px;">逐个加入，适合临时小名单</div>
+      <div class="text-subtle" style="font-size: 12px; margin-top: 6px;">逐个加入，适合临时补一个人</div>
     </div>
 
     <div v-else>
@@ -172,10 +156,10 @@ const activeGroupName = computed(() => {
         padding: '6px 10px',
         borderRadius: '4px',
         fontSize: '12px',
-        background: message.kind === 'ok' ? '#e7f7ee' : '#fff5e6',
-        color: message.kind === 'ok' ? '#2bb673' : '#b56e00',
+        background: message.kind === 'ok' ? 'var(--color-ok-soft)' : 'var(--color-warn-soft)',
+        color: message.kind === 'ok' ? 'var(--color-ok-text)' : 'var(--color-warn-text)',
       }"
     >{{ message.text }}</div>
     </Transition>
-  </section>
+  </div>
 </template>

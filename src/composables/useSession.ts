@@ -1,66 +1,113 @@
 /**
- * 会话管理
- * - 每个会话保存完整状态快照（名单+过滤），支持切换恢复
- * - 启动逻辑交给 useSessionManager
+ * 本轮抽取状态
+ * - 只有一份「本轮」：抽了谁、绑定小组
+ * - 开始新一轮 = 清空抽取记录，绑定小组保留
  */
 
-import { ref, computed, watch, type Ref } from 'vue'
+import { watch, computed, type Ref } from 'vue'
 import { useDB } from './useDB'
 import { useSettings } from './useSettings'
 import { uid } from '@/utils/id'
 import { STORAGE_KEYS, UID_PREFIX } from '@/constants'
-import type { Session, SessionSummary, PickMode, PickRecord } from '@/types/session'
+import type { Round, PickMode, PickRecord } from '@/types/session'
+import type { Bundle, BundleMember } from '@/types/bundle'
 
-let _current: Ref<Session | null> | undefined
+/** 旧版本把小组存在 relations / bindingGroups 字段里，且带 mode（可能含已废弃的互斥） */
+interface LegacyBundle {
+  id: string
+  name?: string
+  color?: string
+  members?: BundleMember[]
+  createdAt?: number
+  mode?: string
+}
+type LegacyRound = Round & {
+  relations?: LegacyBundle[]
+  bindingGroups?: LegacyBundle[]
+}
+
+/** 把旧结构（relations / bindingGroups，可能含已废弃的互斥）统一成绑定小组 */
+export function normalizeBundles(input: unknown): Bundle[] {
+  if (!Array.isArray(input)) return []
+  return (input as LegacyBundle[])
+    .filter(g => !!g && typeof g === 'object' && g.mode !== 'mutex')
+    .map(g => ({
+      id: g.id,
+      name: g.name ?? '未命名小组',
+      color: g.color ?? '#4A90D9',
+      members: Array.isArray(g.members) ? g.members : [],
+      createdAt: g.createdAt ?? Date.now(),
+    }))
+}
+
+let _current: Ref<Round | null> | undefined
+
 function getCurrent() {
-  if (!_current) _current = useDB<Session | null>(STORAGE_KEYS.SESSION_CURRENT, null)
+  if (!_current) _current = useDB<Round | null>(STORAGE_KEYS.SESSION_CURRENT, null)
   return _current
 }
 
-let _history: Ref<(Session | SessionSummary)[]> | undefined
-function getHistory() {
-  if (!_history) _history = useDB<(Session | SessionSummary)[]>(STORAGE_KEYS.SESSION_HISTORY, [])
-  return _history
-}
+/** 新一轮开始后的回调（用于清掉名单上的「已抽」标记等） */
+type NewRoundListener = () => void
+const newRoundListeners: NewRoundListener[] = []
 
-function timestampTitle(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+export function onNewRound(fn: NewRoundListener) {
+  if (!newRoundListeners.includes(fn)) newRoundListeners.push(fn)
 }
 
 export function useSession() {
   const current = getCurrent()
-  const history = getHistory()
   const { prefs } = useSettings()
 
   const totalPickedThisSession = computed(() => current.value?.totalPicked ?? 0)
 
-  function startNewSession() {
-    if (current.value) endCurrentSession()
-    const session: Session = {
+  function startNewRound() {
+    const keepBundles = current.value?.bundles ?? []
+    current.value = {
       id: uid(UID_PREFIX.SESSION),
-      title: timestampTitle(),
       startedAt: Date.now(),
-      endedAt: null,
       picks: [],
       totalPicked: 0,
-      roster: [],
-      rosterGroups: [],
-      blacklist: [],
-      whitelist: [],
-      bindingGroups: [],
+      bundles: keepBundles,
     }
-    current.value = session
-    history.value = [session, ...history.value]
-    trimHistory()
+    for (const fn of newRoundListeners) fn()
   }
 
-  function endCurrentSession() {
-    if (!current.value) return
-    current.value.endedAt = Date.now()
-    const idx = history.value.findIndex(s => s.id === current.value!.id)
-    if (idx >= 0) history.value[idx] = { ...current.value }
+  /** 启动时确保有一份可用的本轮状态（旧数据可能缺字段） */
+  function ensureRound() {
+    const cur = current.value as LegacyRound | null
+    if (!cur || !Array.isArray(cur.picks)) {
+      startNewRound()
+      return
+    }
+
+    const patch: Partial<Round> = {}
+
+    if (!Array.isArray(cur.bundles)) {
+      const legacy = Array.isArray(cur.relations)
+        ? cur.relations
+        : Array.isArray(cur.bindingGroups)
+          ? cur.bindingGroups
+          : []
+      patch.bundles = normalizeBundles(legacy)
+    }
+
+    if (typeof cur.totalPicked !== 'number') {
+      patch.totalPicked = cur.picks.reduce((sum, p) => sum + p.uids.length, 0)
+    }
+
+    if (Object.keys(patch).length > 0) {
+      const next = { ...cur, ...patch } as Round & { relations?: unknown; bindingGroups?: unknown }
+      // 旧字段已迁移，落库前剔除，避免一直残留
+      delete next.relations
+      delete next.bindingGroups
+      current.value = next
+    } else if ('relations' in cur || 'bindingGroups' in cur) {
+      const next = { ...cur } as Round & { relations?: unknown; bindingGroups?: unknown }
+      delete next.relations
+      delete next.bindingGroups
+      current.value = next
+    }
   }
 
   function appendPick(uids: string[], mode: PickMode) {
@@ -68,47 +115,6 @@ export function useSession() {
     const rec: PickRecord = { time: Date.now(), mode, uids: [...uids] }
     current.value.picks.push(rec)
     current.value.totalPicked += uids.length
-    const idx = history.value.findIndex(s => s.id === current.value!.id)
-    if (idx >= 0) history.value[idx] = { ...current.value }
-  }
-
-  function trimHistory() {
-    const limit = Math.max(1, prefs.value.historyLimit)
-    if (history.value.length <= limit) return
-    const overflow = history.value.length - limit
-    const kept: (Session | SessionSummary)[] = []
-    for (let i = 0; i < history.value.length; i++) {
-      const s = history.value[i]
-      if (i < overflow && 'picks' in s) {
-        kept.push({
-          id: s.id,
-          title: s.title,
-          startedAt: s.startedAt,
-          endedAt: s.endedAt,
-          totalPicked: s.totalPicked,
-          compressed: true,
-        })
-      } else {
-        kept.push(s)
-      }
-    }
-    history.value = kept.slice(0, limit)
-  }
-
-  function deleteSession(sessionId: string) {
-    history.value = history.value.filter(s => s.id !== sessionId)
-    if (current.value?.id === sessionId) current.value = null
-  }
-
-  function deleteSessions(ids: string[]) {
-    const idSet = new Set(ids)
-    history.value = history.value.filter(s => !idSet.has(s.id))
-    if (current.value && idSet.has(current.value.id)) current.value = null
-  }
-
-  function clearAllHistory() {
-    history.value = []
-    startNewSession()
   }
 
   function undoToPick(pickIndex: number): string[] | null {
@@ -117,37 +123,32 @@ export function useSession() {
     const undone = current.value.picks.slice(pickIndex).flatMap(p => p.uids)
     current.value.picks = current.value.picks.slice(0, pickIndex)
     current.value.totalPicked = current.value.picks.reduce((sum, p) => sum + p.uids.length, 0)
-    const idx = history.value.findIndex(s => s.id === current.value!.id)
-    if (idx >= 0) history.value[idx] = { ...current.value }
     return undone
   }
 
-  /** 自动开新会话监听：totalPicked 达到阈值 */
-  let lastSeenCount = 0
+  /** 抽满 N 人后自动重置本轮（0 = 关闭） */
+  let lastSeen = 0
   watch(totalPickedThisSession, (n) => {
     const threshold = prefs.value.autoNewSessionAfter
-    if (threshold <= 0) return
-    if (lastSeenCount < threshold && n >= threshold) {
-      startNewSession()
+    if (threshold > 0 && lastSeen < threshold && n >= threshold) {
+      startNewRound()
+      lastSeen = 0
+      return
     }
-    lastSeenCount = n
+    lastSeen = n
   })
 
   function initLastSeen() {
-    lastSeenCount = totalPickedThisSession.value
+    lastSeen = totalPickedThisSession.value
   }
 
   return {
     current,
-    history,
     totalPickedThisSession,
-    startNewSession,
-    endCurrentSession,
+    startNewRound,
+    ensureRound,
     appendPick,
     undoToPick,
-    deleteSession,
-    deleteSessions,
-    clearAllHistory,
     initLastSeen,
   }
 }

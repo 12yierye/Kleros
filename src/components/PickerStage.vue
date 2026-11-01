@@ -1,105 +1,115 @@
 <script setup lang="ts">
-import { ref, watch, computed, onBeforeUnmount } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { usePicker } from '@/composables/usePicker'
 import { useSession } from '@/composables/useSession'
-import { useRoster } from '@/composables/useRoster'
-import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { useSettings } from '@/composables/useSettings'
-import type { PickRecord } from '@/types/session'
-import type { CandidateItem } from '@/utils/pick'
+import { shuffle } from '@/utils/pick'
 
-const { isPicking, isAnimating: pickerAnim, blockAttempt, lastResults, lastError, pool, poolSize, commitAnimatePick } = usePicker()
+const picker = usePicker()
 const { current } = useSession()
-const { entries: roster } = useRoster()
-const { getByUid } = usePermanentRoster()
 const { prefs } = useSettings()
 
-const pulseName = ref<string | null>(null)
-const scrollingName = ref('')
-const scrollingItem = ref<CandidateItem | null>(null)
-let scrollTimer: ReturnType<typeof setInterval> | null = null
+const { isPicking, isAnimating, blockAttempt, displayNames, lastResults, lastError, pool, poolSize, effectiveCount, stopAnimate } = picker
 
-const picks = computed<PickRecord[]>(() => current.value?.picks ?? [])
-const reversedPicks = computed(() => [...picks.value].reverse())
+/** 与 CSS 里的 .reel__item 高度保持一致 */
+const ITEM_H = 60
+const MAX_LANES = 6
+/** 速度 1.0 时每秒滚过的像素 */
+const BASE_PX_PER_SEC = 620
+
+interface Lane {
+  /** 渲染用：名单重复两遍，保证循环接缝不可见 */
+  items: string[]
+  /** 循环长度（单份名单的项数） */
+  loop: number
+}
+
+const lanes = ref<Lane[]>([])
+
+const picks = computed(() => current.value?.picks ?? [])
+const sep = computed(() => prefs.value.pickSeparator || '  ')
+const isRolling = computed(() => isPicking.value && prefs.value.pickStyle === 'animate' && lanes.value.length > 0)
+
+/** 0.1 – 3，1 为基准 */
+const speed = computed(() => {
+  const v = Number(prefs.value.scrollSpeed)
+  return Number.isFinite(v) ? Math.min(3, Math.max(0.1, v)) : 1
+})
+
+function buildLanes() {
+  const names = pool.value.map(p => p.name)
+  if (names.length === 0) {
+    lanes.value = []
+    return
+  }
+  const laneCount = Math.max(1, Math.min(effectiveCount.value, names.length, MAX_LANES))
+  const out: Lane[] = []
+  for (let i = 0; i < laneCount; i++) {
+    const list = shuffle(names)
+    while (list.length < 4) list.push(...list.slice(0, 4 - list.length))
+    out.push({ items: [...list, ...list], loop: list.length })
+  }
+  lanes.value = out
+}
+
+/**
+ * 匀速滚动交给 CSS 动画（线性、无限循环），避免 JS 定时器造成的忽快忽慢。
+ * 所有列共用同一相位，整行同步上移，速度由 duration = 循环高度 / 像素速度决定。
+ */
+function laneStyle(lane: Lane) {
+  const cycle = lane.loop * ITEM_H
+  const seconds = cycle / (BASE_PX_PER_SEC * speed.value)
+  return {
+    '--reel-cycle': `${cycle}px`,
+    animationDuration: `${seconds.toFixed(3)}s`,
+  }
+}
 
 watch(isPicking, (val) => {
   if (val && prefs.value.pickStyle === 'animate') {
-    const names = pool.value
-    if (names.length === 0) return
-    const first = names[Math.floor(Math.random() * names.length)]
-    scrollingName.value = first.name
-    scrollingItem.value = first
-    scrollTimer = setInterval(() => {
-      const idx = Math.floor(Math.random() * names.length)
-      scrollingName.value = names[idx].name
-      scrollingItem.value = names[idx]
-    }, 50)
-  } else {
-    if (scrollTimer) {
-      clearInterval(scrollTimer)
-      scrollTimer = null
-    }
-    if (!val) {
-      if (pickerAnim.value && scrollingItem.value) {
-        commitAnimatePick(scrollingItem.value)
-        pulseName.value = scrollingItem.value.name
-        scrollingItem.value = null
-      } else if (lastResults.value.length > 0) {
-        pulseName.value = lastResults.value.map(r => r.name).join(' · ')
-      }
-    }
+    buildLanes()
+    return
+  }
+  if (val) return
+
+  if (isAnimating.value) {
+    // 停下时按当前人数与口径正式抽取，结果即最终结果
+    stopAnimate(effectiveCount.value)
+    lanes.value = []
   }
 })
 
-watch(() => picks.value.length, (len, oldLen) => {
-  if (len < oldLen) {
-    if (len === 0) {
-      pulseName.value = null
-    } else {
-      const lastPick = picks.value[picks.value.length - 1]
-      if (lastPick && lastPick.uids.length > 0) {
-        pulseName.value = lastPick.uids.map(resolveName).join(' · ')
-      }
-    }
-  }
-})
+const isExhausted = computed(() => poolSize.value === 0 && picks.value.length > 0)
+const isPulse = computed(() => !isPicking.value && !lastError.value && displayNames.value.length > 0)
 
-onBeforeUnmount(() => {
-  if (scrollTimer) clearInterval(scrollTimer)
-})
-
-const isEmpty = computed(() => !isPicking.value && !lastError.value && poolSize.value === 0)
-const isExhausted = computed(() => isEmpty.value && picks.value.length > 0)
+const shownNames = computed(() => (isPicking.value ? [] : displayNames.value))
 
 const display = computed(() => {
   if (lastError.value) return lastError.value
-  if (isPicking.value && prefs.value.pickStyle === 'animate') return scrollingName.value || '…'
   if (isPicking.value) return '…'
-  if (isExhausted.value) return '抽完了，请回溯'
-  if (pulseName.value) return pulseName.value
-  return '准备就绪'
+  // 有过抽取结果就一直显示名字，不会被新一轮 / 自动重置清掉
+  if (isPulse.value) return shownNames.value.join(sep.value)
+  if (isExhausted.value) return '本轮已抽完'
+  if (poolSize.value === 0) return '还没有可抽的人'
+  return `可抽 ${poolSize.value} 人`
 })
 
 const isPlaceholder = computed(() =>
-  !isPicking.value && !pulseName.value && !lastError.value && !isExhausted.value
+  !isPicking.value && !isPulse.value && !lastError.value && !isExhausted.value
 )
 
-const isError = computed(() => !!lastError.value)
-const isPulsing = computed(() => !!pulseName.value && !isPicking.value && !lastError.value)
+const sub = computed(() => {
+  if (lastError.value) return ''
+  if (isPicking.value && poolSize.value === 1) return '候选只剩 1 人，结果已经确定'
+  if (isPicking.value) return `正在抽取 ${Math.min(effectiveCount.value, poolSize.value)} 个`
+  if (isPulse.value && picks.value.length === 0) return '上一轮的结果'
+  if (isPulse.value && lastResults.value.length > 1) return `本次 ${lastResults.value.length} 人`
+  if (isExhausted.value && isPulse.value) return '本轮已抽完，撤销或开始新一轮'
+  return ''
+})
 
-function resolveName(uid: string): string {
-  const r = roster.value.find(e => e.uid === uid)
-  if (r) return r.name
-  const p = getByUid(uid)
-  if (p) return p.name
-  return uid.slice(-6)
-}
-
-function fmtShort(t: number): string {
-  const d = new Date(t)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
+const isMany = computed(() => shownNames.value.length >= 4)
+const isMulti = computed(() => shownNames.value.length > 1)
 </script>
 
 <template>
@@ -108,33 +118,33 @@ function fmtShort(t: number): string {
       class="picker-stage__display"
       :class="{
         'picker-stage__display--placeholder': isPlaceholder,
-        'picker-stage__display--scrolling': isPicking && prefs.pickStyle === 'animate',
-        'picker-stage__display--pulsing': isPulsing,
-        'picker-stage__display--exhausted': isExhausted,
+        'picker-stage__display--scrolling': isPicking,
+        'picker-stage__display--pulsing': isPulse,
+        'picker-stage__display--exhausted': isExhausted && !isPulse,
+        'picker-stage__display--many': isMany,
+        'picker-stage__display--multi': isMulti,
       }"
-      :style="isError ? { color: 'var(--color-danger)' } : (isExhausted ? { color: 'var(--color-warning)' } : {})"
+      :style="lastError ? { color: 'var(--color-danger)' } : (isExhausted && !isPulse ? { color: 'var(--color-warning)' } : {})"
     >
-      <Transition name="scroll-name" mode="out-in">
-        <span :key="display">{{ display }}</span>
+      <Transition name="reveal" mode="out-in">
+        <div
+          v-if="isRolling"
+          key="reel"
+          class="reel-row"
+          :class="{ 'reel-row--dense': lanes.length >= 3, 'reel-row--compact': lanes.length >= 5 }"
+        >
+          <template v-for="(lane, i) in lanes" :key="i">
+            <span v-if="i > 0" class="reel__sep">{{ sep }}</span>
+            <div class="reel">
+              <div class="reel__track" :style="laneStyle(lane)">
+                <span v-for="(n, j) in lane.items" :key="j" class="reel__item">{{ n }}</span>
+              </div>
+            </div>
+          </template>
+        </div>
+        <span v-else :key="display" class="picker-stage__text">{{ display }}</span>
       </Transition>
     </div>
-    <div v-if="lastResults.length > 1 && !isPicking && !lastError" class="picker-stage__sub">
-      本轮 {{ lastResults.length }} 人
-    </div>
-
-    <div v-if="reversedPicks.length > 0" class="picker-stage__history">
-      <div class="picker-stage__history-title">抽取记录</div>
-      <div
-        v-for="(pick, i) in reversedPicks"
-        :key="i"
-        class="picker-stage__history-item"
-      >
-        <span class="picker-stage__history-time">{{ fmtShort(pick.time) }}</span>
-        <span class="picker-stage__history-mode">{{ pick.mode === 'single' ? '单抽' : '多抽' }}</span>
-        <span class="picker-stage__history-names">
-          {{ pick.uids.map(resolveName).join(' · ') }}
-        </span>
-      </div>
-    </div>
+    <div v-if="sub" class="picker-stage__sub">{{ sub }}</div>
   </section>
 </template>

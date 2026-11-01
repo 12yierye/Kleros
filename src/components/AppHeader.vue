@@ -1,72 +1,51 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useSession } from '@/composables/useSession'
-import { useSettings } from '@/composables/useSettings'
+import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { useUi } from '@/composables/useUi'
-import type { LayoutMode } from '@/types/settings'
 
-const { current, totalPickedThisSession, startNewSession } = useSession()
-const { prefs, update } = useSettings()
+const { current, totalPickedThisSession } = useSession()
+const lib = usePermanentRoster()
 const ui = useUi()
 
-const sessionLabel = computed(() => {
+const picked = computed(() => totalPickedThisSession.value)
+const libraryCount = computed(() => lib.groups.value.length)
+
+const roundText = computed(() => {
   if (!current.value) return '未开始'
-  return `${current.value.title} 进行中 · 抽 ${totalPickedThisSession.value} 人`
+  return picked.value > 0 ? `本轮已抽 ${picked.value} 人` : '本轮还没抽'
 })
-
-const layoutModes: { key: LayoutMode; label: string; title: string }[] = [
-  { key: 'tabs', label: '标签', title: '标签页模式' },
-  { key: 'stacked', label: '上下', title: '上下堆叠' },
-  { key: 'split', label: '左右', title: '左右分栏' },
-]
-
-function onNewSession() {
-  void ui.askConfirm({
-    title: '开启新会话？',
-    message: '当前会话将被归档（仍可在历史中查看），本轮已抽过的人将重新可被抽。',
-    confirmText: '开启新会话',
-  }).then(ok => {
-    if (ok) startNewSession()
-  })
-}
-
-function onToggleSide() {
-  ui.toggleSide()
-}
 </script>
 
 <template>
   <header class="app-header">
-    <div class="app-header__title">
-      <span>Kleros · 点名器</span>
-      <span class="app-header__badge">{{ sessionLabel }}</span>
+    <div class="app-header__left">
+      <button
+        class="app-header__toggle"
+        @click="ui.toggleSide()"
+        :title="ui.state.sideCollapsed ? '展开侧栏' : '收起侧栏'"
+        :aria-label="ui.state.sideCollapsed ? '展开侧栏' : '收起侧栏'"
+        :aria-expanded="!ui.state.sideCollapsed"
+      >
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2.5" y="3.5" width="15" height="13" rx="2.5" />
+          <path d="M8 3.5v13" />
+        </svg>
+      </button>
+      <span class="app-header__brand">Kleros</span>
+      <span class="app-header__round">
+        <span v-if="picked > 0" class="app-header__dot"></span>
+        {{ roundText }}
+      </span>
     </div>
+
     <div class="app-header__actions">
-      <div class="radio-group" style="margin-right: 4px;" title="视图切换">
-        <button
-          v-for="m in layoutModes"
-          :key="m.key"
-          class="radio-group__item"
-          :class="{ 'radio-group__item--active': prefs.layoutMode === m.key }"
-          @click="update('layoutMode', m.key)"
-          :title="m.title"
-        >{{ m.label }}</button>
-      </div>
       <button
         class="btn"
-        @click="onNewSession"
-        :disabled="!current"
-        title="归档当前会话并开启新会话"
+        @click="ui.openModal('library')"
+        title="管理名册：长期保存的名单，可整册加入当前名单"
       >
-        新会话
-      </button>
-      <button
-        class="btn btn--icon btn--ghost"
-        @click="onToggleSide"
-        title="切换侧栏"
-        aria-label="切换侧栏"
-      >
-        ☰
+        名册{{ libraryCount ? ` ${libraryCount}` : '' }}
       </button>
     </div>
   </header>

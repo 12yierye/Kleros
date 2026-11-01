@@ -1,6 +1,6 @@
 /**
- * 临时名单（sessionStorage）
- * 支持多分组：一个会话可包含多个临时名单
+ * 当前名单（IndexedDB）
+ * 单一列表：用户这次抽谁就放谁，可随时清空
  */
 
 import { ref, computed, type Ref } from 'vue'
@@ -27,17 +27,10 @@ function getActiveGroupId() {
   return _activeGroupId
 }
 
-let _crossGroup: Ref<boolean> | undefined
-function getCrossGroup() {
-  if (!_crossGroup) _crossGroup = ref<boolean>(false)
-  return _crossGroup
-}
-
 export function useRoster() {
   const entries = getEntries()
   const groups = getGroups()
   const activeGroupId = getActiveGroupId()
-  const crossGroup = getCrossGroup()
 
   const count = computed(() => entries.value.length)
 
@@ -61,12 +54,12 @@ export function useRoster() {
       if (referencedIds.size > 0) {
         groups.value = [...referencedIds].map((id, i) => ({
           id,
-          name: i === 0 ? '临时名单' : `临时名单${i + 1}`,
+          name: i === 0 ? '当前名单' : `当前名单${i + 1}`,
         }))
       } else {
         groups.value = [{
           id: uid(UID_PREFIX.GROUP),
-          name: '临时名单',
+          name: '当前名单',
         }]
       }
     }
@@ -241,7 +234,6 @@ export function useRoster() {
     entries,
     groups,
     activeGroupId,
-    crossGroup,
     count,
     currentEntries,
     groupNames,

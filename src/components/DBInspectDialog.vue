@@ -13,11 +13,10 @@ const data = ref<Record<string, { count: number; value: unknown }> | null>(null)
 const dbMeta = ref<{ name: string; version: number; stores: string[] } | null>(null)
 
 const STORE_LABELS: Record<string, string> = {
-  [STORAGE_KEYS.ROSTER_TEMP]: '临时名单 (kleros.roster.temporary)',
-  [STORAGE_KEYS.ROSTER_PERMANENT]: '常驻名单 (kleros.roster.permanent)',
+  [STORAGE_KEYS.ROSTER_TEMP]: '当前名单 (kleros.roster.temporary)',
+  [STORAGE_KEYS.ROSTER_PERMANENT]: '名册 (kleros.roster.permanent)',
   [STORAGE_KEYS.LISTS_BW]: '黑白名单 (kleros.lists.bw)',
   [STORAGE_KEYS.SESSION_CURRENT]: '当前会话 (kleros.session.current)',
-  [STORAGE_KEYS.SESSION_HISTORY]: '历史会话 (kleros.session.history)',
   [STORAGE_KEYS.PREFS]: '用户偏好 (kleros.prefs)',
 }
 const ALL_STORES = Object.keys(STORE_LABELS)

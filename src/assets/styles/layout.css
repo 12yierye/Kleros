@@ -7,30 +7,73 @@
 }
 
 .app-body {
-  display: grid;
-  grid-template-columns: var(--side-w) 1fr;
+  display: flex;
   min-height: 0;
   overflow: hidden;
-  transition: grid-template-columns 0.2s ease;
 }
 
-.app-body.side-collapsed {
-  grid-template-columns: var(--side-w-collapsed) 1fr;
-}
-
+/* === Side panel（展开 280px / 折叠 56px 图标轨）=== */
 .app-side {
-  border-right: 1px solid var(--color-border);
-  background: var(--color-bg-elev);
+  position: relative;
+  flex: 0 0 var(--side-w);
+  width: var(--side-w);
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg-chrome);
+  transition: width 0.22s ease, flex-basis 0.22s ease;
+}
+
+.app-side--rail {
+  flex-basis: var(--side-w-rail);
+  width: var(--side-w-rail);
 }
 
 .app-side__inner {
   display: flex;
   flex-direction: column;
+  width: var(--side-w);
   height: 100%;
   min-height: 0;
+  visibility: visible;
+  transition: opacity 0.1s ease, visibility 0s linear 0s;
+}
+
+.app-side--rail .app-side__inner {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.1s ease, visibility 0s linear 0.1s;
+}
+
+.app-side__tabs {
+  flex-shrink: 0;
+  display: flex;
+  gap: 2px;
+  padding: 8px 8px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.side-tab {
+  flex: 1 1 0;
+  padding: 7px 0 9px;
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.side-tab:hover {
+  color: var(--color-text);
+  background: var(--color-chip-bg-hover);
+}
+
+.side-tab--active {
+  color: var(--color-text);
+  font-weight: 600;
+  border-bottom-color: var(--color-primary);
 }
 
 .app-side__body {
@@ -46,14 +89,73 @@
   border-top: 1px solid var(--color-border);
 }
 
+/* 折叠后的图标轨：始终可见，永远点得回来 */
+.app-side__rail {
+  position: absolute;
+  inset: 0;
+  width: var(--side-w-rail);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.18s ease, visibility 0s linear 0.18s;
+}
+
+.app-side--rail .app-side__rail {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.18s ease 0.05s, visibility 0s linear 0s;
+}
+
+.rail-btn {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  color: var(--color-text-muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.rail-btn:hover {
+  background: var(--color-chip-bg-hover);
+  color: var(--color-text);
+}
+
+.rail-btn--active {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.rail-btn--active:hover {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.rail-spacer {
+  flex: 1 1 auto;
+}
+
 .app-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  min-height: 0;
   padding: var(--sp-4);
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
+}
+
+/* 纵向堆叠时各类卡片保持自然高度，超出让容器滚动 */
+.app-main:not(.app-main--split) > * {
+  flex-shrink: 0;
 }
 
 .app-main--split {
@@ -70,10 +172,8 @@
   overflow-y: auto;
 }
 
-@media (max-width: 900px) {
-  .app-body {
-    grid-template-columns: var(--side-w-collapsed) 1fr;
-  }
+.app-main__col > * {
+  flex-shrink: 0;
 }
 
 /* === Main area sections === */

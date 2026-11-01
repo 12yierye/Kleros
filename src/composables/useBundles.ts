@@ -1,8 +1,7 @@
 /**
- * 互斥组（Binding Group）管理
- * 数据存在当前 Session 的 bindingGroups 字段
- * 派生 lockedUids：已抽中成员的同组其他 uid
- * 自动监听临时/常驻名单变化，消失的 uid 同步从所有互斥组移除
+ * 绑定小组管理
+ * 数据存在当前轮的 bundles 字段（跨轮保留）
+ * 名单增减时自动清理引用了不存在 uid 的成员
  */
 
 import { computed, watch, type ComputedRef } from 'vue'
@@ -11,12 +10,11 @@ import { useRoster } from './useRoster'
 import { usePermanentRoster } from './usePermanentRoster'
 import { uid } from '@/utils/id'
 import { UID_PREFIX } from '@/constants'
-import { getLockedUids } from '@/utils/pick'
-import type { BindingGroup, BindingMember } from '@/types/binding'
+import type { Bundle } from '@/types/bundle'
 
 let _instance: ReturnType<typeof create> | undefined
 
-export function useBindingGroups() {
+export function useBundles() {
   if (!_instance) _instance = create()
   return _instance
 }
@@ -26,23 +24,13 @@ function create() {
   const roster = useRoster()
   const permanent = usePermanentRoster()
 
-  const groups: ComputedRef<BindingGroup[]> = computed(
-    () => session.current.value?.bindingGroups ?? []
+  const all: ComputedRef<Bundle[]> = computed(
+    () => session.current.value?.bundles ?? []
   )
 
-  const lockedUids: ComputedRef<Set<string>> = computed(() => {
-    const cur = session.current.value
-    if (!cur) return new Set()
-    return getLockedUids(cur.picks, cur.bindingGroups ?? [])
-  })
-
-  function getGroupsForUid(uidVal: string): BindingGroup[] {
-    return groups.value.filter(g => g.members.some(m => m.uid === uidVal))
-  }
-
-  /** 返回该 uid 所在的所有组，按"该 uid 加入该组的时间"升序（用于 chip 多色点排序） */
-  function getGroupsForUidByAddedAt(uidVal: string): BindingGroup[] {
-    return groups.value
+  /** 返回该 uid 所在的所有小组，按"加入时间"升序（用于 chip 多色点排序） */
+  function getBundlesForUid(uidVal: string): Bundle[] {
+    return all.value
       .filter(g => g.members.some(m => m.uid === uidVal))
       .map(g => {
         const m = g.members.find(x => x.uid === uidVal)!
@@ -59,49 +47,48 @@ function create() {
     return s
   }
 
-  function commit(next: BindingGroup[]) {
+  function commit(next: Bundle[]) {
     const cur = session.current.value
     if (!cur) return
-    cur.bindingGroups = next
+    cur.bundles = next
     session.current.value = { ...cur }
   }
 
-  function createGroup(opts: { name: string; color: string; memberUids: string[] }): BindingGroup | null {
+  function createGroup(opts: { name: string; color: string; memberUids: string[] }): Bundle | null {
     const cur = session.current.value
     if (!cur) return null
     const valid = validUidSet()
-    const filtered = opts.memberUids.filter(u => valid.has(u))
-    const unique = Array.from(new Set(filtered))
+    const unique = Array.from(new Set(opts.memberUids.filter(u => valid.has(u))))
     if (unique.length < 2) return null
     const now = Date.now()
-    const g: BindingGroup = {
+    const g: Bundle = {
       id: uid(UID_PREFIX.BINDING),
-      name: opts.name.trim() || '未命名组',
+      name: opts.name.trim() || '未命名小组',
       color: opts.color,
       members: unique.map(m => ({ uid: m, addedAt: now })),
       createdAt: now,
     }
-    commit([...groups.value, g])
+    commit([...all.value, g])
     return g
   }
 
   function rename(id: string, name: string) {
-    commit(groups.value.map(g => g.id === id ? { ...g, name: name.trim() || g.name } : g))
+    commit(all.value.map(g => g.id === id ? { ...g, name: name.trim() || g.name } : g))
   }
 
   function recolor(id: string, color: string) {
-    commit(groups.value.map(g => g.id === id ? { ...g, color } : g))
+    commit(all.value.map(g => g.id === id ? { ...g, color } : g))
   }
 
   function addMembers(id: string, uids: string[]) {
-    const target = groups.value.find(g => g.id === id)
+    const target = all.value.find(g => g.id === id)
     if (!target) return
     const valid = validUidSet()
     const existing = new Set(target.members.map(m => m.uid))
     const filtered = uids.filter(u => valid.has(u) && !existing.has(u))
     if (filtered.length === 0) return
     const now = Date.now()
-    commit(groups.value.map(g => {
+    commit(all.value.map(g => {
       if (g.id !== id) return g
       return { ...g, members: [...g.members, ...filtered.map(u => ({ uid: u, addedAt: now }))] }
     }))
@@ -109,20 +96,20 @@ function create() {
 
   function removeMembers(id: string, uids: string[]) {
     const set = new Set(uids)
-    const next = groups.value
+    const next = all.value
       .map(g => g.id === id ? { ...g, members: g.members.filter(m => !set.has(m.uid)) } : g)
       .filter(g => g.members.length >= 2)
     commit(next)
   }
 
   function dissolve(id: string) {
-    commit(groups.value.filter(g => g.id !== id))
+    commit(all.value.filter(g => g.id !== id))
   }
 
   function purgeUids(uids: string[]) {
     const set = new Set(uids)
     if (set.size === 0) return
-    const before = groups.value
+    const before = all.value
     const next = before
       .map(g => ({ ...g, members: g.members.filter(m => !set.has(m.uid)) }))
       .filter(g => g.members.length >= 2)
@@ -134,13 +121,13 @@ function create() {
   let prevRosterUids = new Set(roster.entries.value.map(e => e.uid))
   let prevPermUids = new Set(permanent.entries.value.map(e => e.uid))
 
-  // 初始化时执行一次：清理引用了不存在 uid 的组
+  // 初始化时执行一次：清理引用了不存在 uid 的成员
   {
     const validUids = new Set<string>()
     for (const e of roster.entries.value) validUids.add(e.uid)
     for (const e of permanent.entries.value) validUids.add(e.uid)
     const toRemove: string[] = []
-    for (const g of groups.value) {
+    for (const g of all.value) {
       for (const m of g.members) {
         if (!validUids.has(m.uid)) toRemove.push(m.uid)
       }
@@ -164,10 +151,8 @@ function create() {
   )
 
   return {
-    groups,
-    lockedUids,
-    getGroupsForUid,
-    getGroupsForUidByAddedAt,
+    all,
+    getBundlesForUid,
     create: createGroup,
     rename,
     recolor,

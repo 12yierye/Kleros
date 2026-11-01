@@ -1,54 +1,55 @@
 /**
- * 用户偏好（持久化到 localStorage）
+ * 用户偏好（持久化到 IndexedDB）
  */
 
-export type AnimationSpeed = 'off' | 'fast' | 'normal' | 'slow'
 export type LayoutMode = 'tabs' | 'stacked' | 'split'
 export type PickStyle = 'direct' | 'animate'
+/** 抽取口径：按人（各自独立）/ 按小组（小组成员一起出） */
+export type DrawMode = 'person' | 'group'
 
 export interface UserPreferences {
-  /** 动画速度 */
-  animationSpeed: AnimationSpeed
-  /** 当前会话内已抽过的人不再被抽 */
+  /** 偏好结构版本，用于一次性迁移 */
+  prefsVersion?: number
+  /** 滚动抽取速率：0.1–3，1 为基准 */
+  scrollSpeed: number
+  /** 当前轮次内已抽过的人不再被抽 */
   noRepeatInSession: boolean
   /** 左侧栏是否折叠 */
   sidePanelCollapsed: boolean
-  /** 左侧栏各 Section 折叠状态：key 为 section id */
-  sidePanelSections: Record<string, boolean>
-  /** 历史上限（默认 50） */
-  historyLimit: number
-  /** 抽 N 人后自动开新会话（0 = 仅手动） */
+  /** 抽 N 人后自动换轮（0 = 仅手动） */
   autoNewSessionAfter: number
-  /** 主题（首版仅 light） */
+  /** 主题 */
   theme: 'light' | 'dark'
-  /** 主界面布局：标签页 / 上下堆叠 / 左右分栏 */
+  /** 主界面布局：分页 / 上下堆叠 / 左右分栏 */
   layoutMode: LayoutMode
-  /** 是否记住视图模式（关闭则每次启动回到标签模式） */
+  /** 是否记住视图模式 */
   rememberLayout: boolean
-  /** 抽取风格：直接抽取 / 动画抽取 */
+  /** 抽取方式：直接出结果 / 滚动动画 */
   pickStyle: PickStyle
+  /** 抽取口径：按人 / 按小组 */
+  drawMode: DrawMode
+  /** 多人结果的分隔符（默认两个空格） */
+  pickSeparator: string
   /** 开始抽取按钮文本 */
   startButtonText: string
   /** 暂停/查看按钮文本 */
   pauseButtonText: string
 }
 
+export const PREFS_VERSION = 3
+
 export const DEFAULT_PREFERENCES: UserPreferences = {
-  animationSpeed: 'off',
+  prefsVersion: PREFS_VERSION,
+  scrollSpeed: 1,
   noRepeatInSession: true,
   sidePanelCollapsed: false,
-  sidePanelSections: {
-    blacklist: false,
-    whitelist: false,
-    pickOptions: false,
-    history: true,
-  },
-  historyLimit: 50,
   autoNewSessionAfter: 0,
   theme: 'light',
   layoutMode: 'tabs',
   rememberLayout: true,
   pickStyle: 'direct',
+  drawMode: 'person',
+  pickSeparator: '  ',
   startButtonText: '开始抽取',
   pauseButtonText: '看看是谁',
 }

@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { provide, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { provideUi, useUi } from '@/composables/useUi'
-import { useSettings } from '@/composables/useSettings'
-import { useSession } from '@/composables/useSession'
+import { useSettings, normalizePrefs } from '@/composables/useSettings'
+import { useSession, onNewRound, normalizeBundles } from '@/composables/useSession'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { useBlackWhiteList } from '@/composables/useBlackWhiteList'
-import { useSessionManager } from '@/composables/useSessionManager'
 import { usePicker } from '@/composables/usePicker'
 import { useFilePersistence } from '@/composables/useFilePersistence'
 import { exportAllDB, dbReady } from '@/composables/useDB'
@@ -14,22 +13,23 @@ import { DEFAULT_PREFERENCES } from '@/types/settings'
 import { setDebug } from '@/utils/debug'
 import { debug } from '@/utils/debug'
 import type { UserPreferences } from '@/types/settings'
-import type { RosterEntry, PermanentEntry } from '@/types/roster'
-import type { Session, SessionSummary } from '@/types/session'
+import type { RosterEntry } from '@/types/roster'
+import type { Round } from '@/types/session'
 
 import AppHeader from '@/components/AppHeader.vue'
 import AppFooter from '@/components/AppFooter.vue'
 import SidePanel from '@/components/SidePanel.vue'
-import InputPanel from '@/components/InputPanel.vue'
 import RosterPanel from '@/components/RosterPanel.vue'
 import PickerControls from '@/components/PickerControls.vue'
 import PickerStage from '@/components/PickerStage.vue'
+import PickerHistory from '@/components/PickerHistory.vue'
 import SettingsDialog from '@/components/SettingsDialog.vue'
 import RenameDialog from '@/components/RenameDialog.vue'
 import GlobalRenameDialog from '@/components/GlobalRenameDialog.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DBInspectDialog from '@/components/DBInspectDialog.vue'
-import BindingGroupsDialog from '@/components/BindingGroupsDialog.vue'
+import BundlesDialog from '@/components/BundlesDialog.vue'
+import LibraryDialog from '@/components/LibraryDialog.vue'
 
 if (typeof window !== 'undefined') {
   const p = new URL(window.location.href).searchParams
@@ -45,26 +45,53 @@ const permanentRefs = usePermanentRoster()
 const bwRefs = useBlackWhiteList()
 const settingsRefs = useSettings()
 
-const session = useSessionManager()
+const session = sessionRefs
 const picker = usePicker()
 
 if (!prefs.value.rememberLayout) {
   update('layoutMode', 'tabs')
 }
 
-function switchSessionWithGuard(id: string) {
-  if (picker.isAnimating.value) {
-    picker.blockAttempt.value = true
-    setTimeout(() => { picker.blockAttempt.value = false }, 2000)
-    return
-  }
-  session.switchSession(id)
+function startNewRound() {
+  session.startNewRound()
+  picker.lastResults.value = []
+  picker.lastError.value = null
 }
+provide('startNewRound', startNewRound)
 
-provide('switchSession', switchSessionWithGuard)
-provide('deleteSessions', session.deleteSessions)
+/* 新一轮开始时，清掉名单上的「已抽」灰态 */
+onNewRound(() => {
+  rosterRefs.resetPickedFlags()
+  session.initLastSeen()
+})
 
+/* 侧栏折叠：UI 状态 ↔ 偏好，双向同步（否则刷新即还原） */
 ui.state.sideCollapsed = prefs.value.sidePanelCollapsed
+
+let suppressPersist = false
+watch(
+  () => ui.state.sideCollapsed,
+  (v) => {
+    if (suppressPersist) return
+    if (prefs.value.sidePanelCollapsed !== v) prefs.value.sidePanelCollapsed = v
+  },
+  { flush: 'sync' }
+)
+watch(
+  () => prefs.value.sidePanelCollapsed,
+  (v) => {
+    if (ui.state.sideCollapsed !== v) ui.state.sideCollapsed = v
+  }
+)
+
+/* 窄屏自动收起（只收不放，且不写入偏好，避免污染桌面端的记忆） */
+let narrowMq: MediaQueryList | null = null
+function onNarrowChange(e: MediaQueryList | MediaQueryListEvent) {
+  if (!e.matches) return
+  suppressPersist = true
+  ui.state.sideCollapsed = true
+  suppressPersist = false
+}
 
 const viewTab = ref<'pick' | 'roster'>('pick')
 
@@ -72,10 +99,11 @@ function onPick(payload: { mode: 'single' | 'multi'; count: number }) {
   void picker.trigger(payload)
 }
 
-watch(() => prefs.value.animationSpeed, (speed) => {
-  const map: Record<string, string> = { off: '0s', fast: '0.12s', normal: '0.25s', slow: '0.5s' }
-  document.documentElement.style.setProperty('--anim-duration', map[speed] || '0.25s')
-}, { immediate: true })
+watch(
+  () => prefs.value.theme,
+  (theme) => { document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : 'light' },
+  { immediate: true }
+)
 
 function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
@@ -108,52 +136,54 @@ function debouncedSave() {
   saveTimer = setTimeout(async () => {
     const data = await exportAllDB()
     await filePersistence.saveToFile(data)
-    debug('app', `auto-save done, picks=${(data.sessions.current as Session)?.totalPicked ?? 0}`)
+    debug('app', `auto-save done, picks=${(data.sessions.current as Round | null)?.totalPicked ?? 0}`)
   }, 500)
 }
 
 onMounted(async () => {
   debug('app', '======== STARTUP ========')
   await dbReady
-  debug('app', 'dbReady, starting session.init (IndexedDB)')
+  normalizePrefs()
+  debug('app', 'dbReady, restoring state')
 
-  await session.init()
+  sessionRefs.ensureRound()
+  sessionRefs.initLastSeen()
+  // 当前名单的分组是运行时从条目里重建的，启动必须先初始化
+  rosterRefs.ensureDefaultGroup()
+
+  narrowMq = window.matchMedia('(max-width: 900px)')
+  onNarrowChange(narrowMq)
+  narrowMq.addEventListener('change', onNarrowChange)
 
   await filePersistence.init()
   const data = await filePersistence.loadFromFile()
 
-  if (data) {
-    const dbPicks = sessionRefs.history.value.reduce((sum, s) => sum + s.totalPicked, 0)
-    const history = (data.sessions.history as { totalPicked: number }[])
-    const filePicks = history.reduce((sum, s: { totalPicked: number }) => sum + (s.totalPicked ?? 0), 0)
-
-    debug('app', `compare: dbPicks=${dbPicks} vs filePicks=${filePicks}`)
-
-    if (filePicks > dbPicks) {
-      debug('app', 'backup newer, restoring from backup')
-      rosterRefs.entries.value = data.roster.temporary as RosterEntry[]
-      permanentRefs.entries.value = data.roster.permanent as PermanentEntry[]
-      bwRefs.list.value = data.lists
-      sessionRefs.current.value = data.sessions.current as Session | null
-      sessionRefs.history.value = data.sessions.history as (Session | SessionSummary)[]
-      if (data.prefs) {
-        settingsRefs.prefs.value = {
-          ...DEFAULT_PREFERENCES,
-          ...(data.prefs as Partial<UserPreferences>),
-        }
+  // 备份只是本地库的镜像，仅在本地名单为空时兜底
+  if (data && rosterRefs.entries.value.length === 0 && Array.isArray(data.roster.temporary) && data.roster.temporary.length > 0) {
+    debug('app', 'local empty, restoring from backup')
+    rosterRefs.entries.value = data.roster.temporary as RosterEntry[]
+    permanentRefs.replaceAll(data.roster.permanent)
+    bwRefs.list.value = data.lists
+    const backupRound = data.sessions.current as (Round & { relations?: unknown }) | null
+    const backupBundles = normalizeBundles(backupRound?.bundles ?? backupRound?.relations)
+    sessionRefs.startNewRound()
+    if (backupBundles.length > 0 && sessionRefs.current.value) {
+      sessionRefs.current.value = { ...sessionRefs.current.value, bundles: backupBundles }
+    }
+    if (data.prefs) {
+      settingsRefs.prefs.value = {
+        ...DEFAULT_PREFERENCES,
+        ...(data.prefs as Partial<UserPreferences>),
       }
-    } else {
-      debug('app', 'IndexedDB equal or newer, keeping IndexedDB')
     }
   }
 
   watch(
     [
       () => sessionRefs.current.value,
-      () => sessionRefs.history.value,
       () => rosterRefs.entries.value,
       () => rosterRefs.groups.value,
-      () => permanentRefs.entries.value,
+      () => permanentRefs.groups.value,
       () => bwRefs.list.value,
       () => settingsRefs.prefs.value,
     ],
@@ -169,14 +199,17 @@ onMounted(async () => {
   debug('app', '======== STARTUP DONE ========')
 })
 
-onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
+  narrowMq?.removeEventListener('change', onNarrowChange)
+})
 </script>
 
 <template>
   <div class="app-root">
     <AppHeader />
 
-    <div class="app-body" :class="{ 'side-collapsed': ui.state.sideCollapsed }">
+    <div class="app-body">
       <SidePanel />
 
       <!-- 标签页模式 -->
@@ -196,31 +229,31 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
         <template v-if="viewTab === 'pick'">
           <PickerControls @pick="onPick" />
           <PickerStage />
+          <PickerHistory />
         </template>
         <template v-else>
-          <InputPanel />
           <RosterPanel />
         </template>
       </main>
 
-      <!-- 左右分栏模式 -->
+      <!-- 横向：左右并排（左抽取 · 右名单） -->
       <main v-else-if="prefs.layoutMode === 'split'" class="app-main app-main--split">
-        <div class="app-main__col">
-          <InputPanel />
-          <RosterPanel />
-        </div>
         <div class="app-main__col">
           <PickerControls @pick="onPick" />
           <PickerStage />
+          <PickerHistory />
+        </div>
+        <div class="app-main__col">
+          <RosterPanel />
         </div>
       </main>
 
-      <!-- 默认上下堆叠 -->
+      <!-- 纵向：上下堆叠（上抽取 · 下名单） -->
       <main v-else class="app-main">
-        <InputPanel />
-        <RosterPanel />
         <PickerControls @pick="onPick" />
         <PickerStage />
+        <PickerHistory />
+        <RosterPanel />
       </main>
     </div>
 
@@ -231,6 +264,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
     <GlobalRenameDialog />
     <ConfirmDialog />
     <DBInspectDialog />
-    <BindingGroupsDialog />
+    <BundlesDialog />
+    <LibraryDialog />
   </div>
 </template>

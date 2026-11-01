@@ -52,7 +52,6 @@ const storeNames = [
   'kleros.roster.permanent',
   'kleros.lists.bw',
   'kleros.session.current',
-  'kleros.session.history',
   'kleros.prefs',
 ]
 
@@ -62,7 +61,6 @@ const legacyMap: Record<string, string> = {
   'kleros.roster.permanent': 'kleros.roster.permanent',
   'kleros.lists.bw': 'kleros.lists.bw',
   'kleros.session.current': 'kleros.session.current',
-  'kleros.session.history': 'kleros.session.history',
   'kleros.prefs': 'kleros.prefs',
 }
 
@@ -234,17 +232,14 @@ export async function exportAllDB(): Promise<PersistenceData> {
     readStore<unknown[]>(db, 'kleros.roster.permanent', []),
   ])
   const lists = await readStore<{ black: string[]; white: string[] }>(db, 'kleros.lists.bw', { black: [], white: [] })
-  const [cur, hist] = await Promise.all([
-    readStore<unknown>(db, 'kleros.session.current', null),
-    readStore<unknown[]>(db, 'kleros.session.history', []),
-  ])
+  const cur = await readStore<unknown>(db, 'kleros.session.current', null)
   const prefs = await readStore<unknown>(db, 'kleros.prefs', null)
   return {
     version: 1,
     savedAt: Date.now(),
     roster: { temporary: temp, permanent: perm },
     lists,
-    sessions: { current: cur, history: hist },
+    sessions: { current: cur, history: [] },
     prefs,
   }
 }
@@ -256,7 +251,6 @@ export async function importAllDB(data: PersistenceData): Promise<void> {
     writeStore(db, 'kleros.roster.permanent', data.roster.permanent),
     writeStore(db, 'kleros.lists.bw', data.lists),
     writeStore(db, 'kleros.session.current', data.sessions.current),
-    writeStore(db, 'kleros.session.history', data.sessions.history),
     writeStore(db, 'kleros.prefs', data.prefs),
   ])
 }

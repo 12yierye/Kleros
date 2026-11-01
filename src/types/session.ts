@@ -1,13 +1,9 @@
 /**
- * 会话相关类型
- * 当前会话 endedAt = null，进行中
- * 历史会话 endedAt 有值
- *
- * 每个会话保存当时完整的名单和过滤条件快照，切换时恢复最后一刻的状态
+ * 抽取相关类型
+ * 整个应用只有一个「本轮」状态：抽了谁 + 绑定小组，不再保留历史轮次
  */
 
-import type { RosterEntry, RosterGroup } from './roster'
-import type { BindingGroup } from './binding'
+import type { Bundle } from './bundle'
 
 export type PickMode = 'single' | 'multi'
 
@@ -21,39 +17,13 @@ export interface PickRecord {
   uids: string[]
 }
 
-/** 会话 */
-export interface Session {
+/** 本轮抽取状态 */
+export interface Round {
   id: string
-  /** 用户可见标题（默认时间戳精确到秒） */
-  title: string
   startedAt: number
-  endedAt: number | null
   picks: PickRecord[]
   /** 缓存的抽中总人次，避免每次重算 */
   totalPicked: number
-  /** 分组列表 */
-  rosterGroups: RosterGroup[]
-  /** 临时名单快照 */
-  roster: RosterEntry[]
-  /** 黑名单快照 */
-  blacklist: string[]
-  /** 白名单快照 */
-  whitelist: string[]
-  /** 互斥组快照（缺省视为 []） */
-  bindingGroups: BindingGroup[]
-}
-
-/** 概要会话（历史压缩模式，丢弃 picks 和名单明细） */
-export interface SessionSummary {
-  id: string
-  title: string
-  startedAt: number
-  endedAt: number | null
-  totalPicked: number
-  /** 是否已被压缩（无明细） */
-  compressed: true
-}
-
-export function isFullSession(s: Session | SessionSummary): s is Session {
-  return !('compressed' in s)
+  /** 绑定小组（跨轮保留） */
+  bundles: Bundle[]
 }

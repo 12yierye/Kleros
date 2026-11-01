@@ -11,7 +11,7 @@ const { entries: roster } = useRoster()
 const { entries: permanent } = usePermanentRoster()
 const { blackCount, whiteCount } = useBlackWhiteList()
 const { poolSize } = usePicker()
-const { totalPickedThisSession, history } = useSession()
+const { totalPickedThisSession } = useSession()
 const { fileLabel } = useFilePersistence()
 
 const stats = computed(() => ({
@@ -21,7 +21,6 @@ const stats = computed(() => ({
   black: blackCount.value,
   white: whiteCount.value,
   picked: totalPickedThisSession.value,
-  historyCount: history.value.length,
 }))
 </script>
 
@@ -29,12 +28,11 @@ const stats = computed(() => ({
   <footer class="app-footer">
     <div class="app-footer__stats">
       <span>可抽 <b>{{ stats.pool }}</b></span>
-      <span>临时 <b>{{ stats.roster }}</b></span>
-      <span>常驻 <b>{{ stats.permanent }}</b></span>
+      <span>当前 <b>{{ stats.roster }}</b></span>
+      <span>名册 <b>{{ stats.permanent }}</b></span>
       <span>黑 <b>{{ stats.black }}</b></span>
       <span>白 <b>{{ stats.white }}</b></span>
-      <span>本会话已抽 <b>{{ stats.picked }}</b></span>
-      <span>历史 <b>{{ stats.historyCount }}</b></span>
+      <span>本轮已抽 <b>{{ stats.picked }}</b></span>
     </div>
     <div class="app-footer__file-status">
       {{ fileLabel }}

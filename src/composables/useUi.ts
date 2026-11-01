@@ -11,9 +11,12 @@ export type ModalKind =
   | 'rename'
   | 'globalRename'
   | 'dbInspect'
-  | 'bindingGroups'
+  | 'bundles'
+  | 'library'
   | 'confirm'
   | null
+
+export type SideView = 'filters' | 'options'
 
 export interface ConfirmState {
   title: string
@@ -26,6 +29,7 @@ export interface ConfirmState {
 
 export interface UiState {
   sideCollapsed: boolean
+  sideView: SideView
   modal: ModalKind
   renameTargetUid: string | null
   renameTargetFrom: 'roster' | 'permanent' | null
@@ -35,6 +39,8 @@ export interface UiState {
 export interface UiApi {
   state: UiState
   toggleSide(): void
+  showSideView(view: SideView): void
+  openBundles(): void
   openModal(kind: Exclude<ModalKind, null>): void
   closeModal(): void
   openRename(uidVal: string, from: 'roster' | 'permanent'): void
@@ -46,6 +52,7 @@ const KEY: InjectionKey<UiApi> = Symbol('kleros.ui')
 export function provideUi(): UiApi {
   const state = reactive<UiState>({
     sideCollapsed: false,
+    sideView: 'filters',
     modal: null,
     renameTargetUid: null,
     renameTargetFrom: null,
@@ -56,6 +63,13 @@ export function provideUi(): UiApi {
     state,
     toggleSide() {
       state.sideCollapsed = !state.sideCollapsed
+    },
+    showSideView(view) {
+      state.sideView = view
+      state.sideCollapsed = false
+    },
+    openBundles() {
+      state.modal = 'bundles'
     },
     openModal(kind) {
       state.modal = kind

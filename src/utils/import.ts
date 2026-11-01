@@ -40,7 +40,6 @@ export async function importData(json: string): Promise<ImportResult> {
   const listsBlack = parsed.lists?.black
   const listsWhite = parsed.lists?.white
   const sessionsCur = parsed.sessions?.current
-  const sessionsHist = parsed.sessions?.history
 
   if (rosterTemp !== undefined && !Array.isArray(rosterTemp)) {
     return { ok: false, error: 'roster.temporary 必须是数组' }
@@ -53,9 +52,6 @@ export async function importData(json: string): Promise<ImportResult> {
   }
   if (listsWhite !== undefined && !Array.isArray(listsWhite)) {
     return { ok: false, error: 'lists.white 必须是数组' }
-  }
-  if (sessionsHist !== undefined && !Array.isArray(sessionsHist)) {
-    return { ok: false, error: 'sessions.history 必须是数组' }
   }
 
   const db = await getDB()
@@ -73,9 +69,6 @@ export async function importData(json: string): Promise<ImportResult> {
   }
   if (parsed.sessions !== undefined) {
     writes.push(writeDB(db, 'kleros.session.current', sessionsCur ?? null))
-    if (sessionsHist !== undefined) {
-      writes.push(writeDB(db, 'kleros.session.history', sessionsHist))
-    }
   }
   if (parsed.prefs !== undefined) {
     writes.push(writeDB(db, 'kleros.prefs', parsed.prefs))

@@ -1,94 +1,117 @@
 # Kleros · 点名器
 
-基于 Vue 3 + Vite + TypeScript 的轻量点名器。临时名单 + 常驻名单 + 黑白名单 + 会话式抽取。
+Kleros 是一个用于随机指派的单文件工具。把名单放进来，按人或按小组抽取，本轮抽中的人不会重复出现。
 
-## 启动
+无需注册，无需联网，数据全部保存在浏览器本地。构建产物只有一个 HTML 文件，双击即可运行。
+
+<p align="center">
+  <img src="docs/images/pick.png" alt="抽取结果：小组整体抽出，组名下方列出成员" width="860">
+</p>
+
+## 功能
+
+### 两种抽取口径
+
+**按人**：每个人独立参与，抽几个人就出几个人。
+
+**按小组**：事先编好的组被视为一个整体，组内成员一起被抽中，不会被拆开。名额不足时整组一起出——设 2 人却抽中 3 人小组，结果就是 3 个人。
+
+按小组抽取时，不属于任何小组的人不参与，「可抽 N 人」也只统计组内成员。
+
+### 黑白名单
+
+黑名单中的人不会出现在抽取结果里。白名单一旦有内容，抽取范围就缩小到白名单内。
+
+两个名单的搜索框都支持拼音：输入 `zs` 或 `zhangsan` 都能找到「张三」，大小写不敏感。
+
+<p align="center">
+  <img src="docs/images/filter.png" alt="侧栏黑白名单与拼音搜索" width="860">
+</p>
+
+### 名册
+
+名册用于长期保存名单，与当前参与抽取的名单分离。常用的班级、值班表放进名册后，可以整册或按人重新加入当前名单。
+
+<p align="center">
+  <img src="docs/images/library.png" alt="名册管理：按组保存，支持编辑与删除" width="860">
+</p>
+
+### 其他
+
+- **滚动动画**：名字滚动若干秒后定格，速度可调，空格键控制开始与暂停
+- **抽取记录**：本轮每次抽取都有记录，可撤销到任意一条之前
+- **界面**：深色模式；分页、左右分栏、上下堆叠三种布局
+- **数据**：支持 JSON 导入导出
+
+## 快速开始
 
 ```bash
 npm install
-npm run dev
+npm run dev      # 开发服务器，http://localhost:5173
 ```
 
-打开 http://localhost:5173
+构建可分发版本：
 
-## 脚本
+```bash
+npm run build    # 输出 dist/Kleros <版本>.html，双击即可运行
+```
 
-| 命令 | 作用 |
-|---|---|
-| `npm run dev` | 启动开发服务器 |
-| `npm run build` | 类型检查 + 生产构建 |
-| `npm run preview` | 预览生产构建 |
-| `npm run typecheck` | 仅类型检查 |
+## 使用
 
-## 架构
+1. 在「名单」页添加人员。支持批量粘贴（空格、逗号、换行、制表符均可分隔）、逐个添加、读取 `.txt` / `.csv`，或从名册导入。
+2. 如需按小组抽取，在名单页点击「小组」，勾选至少两人建立分组。
+3. 在「抽取」页选择口径与人数，点击开始。抽完可以撤销，或开新一轮重置。
+4. 侧栏「过滤」维护黑白名单，「参数」调整本轮不重复、自动换轮等行为。
+
+## 数据存储
+
+数据保存在浏览器的 IndexedDB 中，不上传、不联网。
+
+以 `file://` 方式直接打开 HTML 时，数据与文件路径绑定——移动文件位置会导致数据不可见。清除浏览器数据也会一并清除。重要名单建议在设置中导出 JSON 备份。
+
+## 开发
+
+Vue 3 + Vite + TypeScript，未使用 UI 框架，样式手写。需要 Node 18 及以上。
+
+```bash
+npm run dev     # 开发服务器，http://localhost:5173
+npm run build   # 类型检查 + 构建，输出 dist/Kleros <版本>.html
+```
+
+构建产物名中的版本号读取自 `package.json`，无需另行修改。
+
+拼音字典是预生成后写入源码的（`src/utils/pinyinDict.ts`），修改生成脚本 `scripts/gen-pinyin-dict.mjs` 后需重新执行：
+
+```bash
+node scripts/gen-pinyin-dict.mjs
+```
+
+## 目录结构
 
 ```
 src/
-├── main.ts                     入口
-├── App.vue                     顶层布局
-├── types/                      类型定义
-│   ├── roster.ts               临时/常驻
-│   ├── session.ts              会话/抽取记录
-│   ├── list.ts                 黑白名单
-│   └── settings.ts             用户偏好
-├── composables/                业务逻辑
-│   ├── useStorage.ts           响应式 storage 封装
-│   ├── useRoster.ts            临时名单 (sessionStorage)
-│   ├── usePermanentRoster.ts   常驻名单 (localStorage)
-│   ├── useBlackWhiteList.ts    黑白名单 (localStorage)
-│   ├── useSession.ts           会话管理
-│   ├── usePicker.ts            抽取逻辑 + 动画接口
-│   ├── useSettings.ts          用户偏好
-│   └── useUi.ts                UI 状态 (provide/inject)
-├── utils/
-│   ├── nameParser.ts           文本/CSV 解析
-│   ├── pick.ts                 候选池 + Fisher-Yates
-│   └── id.ts                   UID 生成
-├── components/                 视图组件
-│   ├── AppHeader.vue / AppFooter.vue
-│   ├── SidePanel.vue + 各 Section
-│   ├── InputPanel.vue          粘贴/手动/文件 三 Tab
-│   ├── RosterPanel.vue         临时+常驻名单展示
-│   ├── NameChip.vue
-│   ├── PickerControls.vue      单抽/多抽
-│   ├── PickerStage.vue         结果展示（动画留接口）
-│   └── *Dialog.vue             设置/重命名/确认
-└── assets/styles/              样式
+├── components/     界面组件：面板、弹窗、抽取舞台
+├── composables/    状态与业务逻辑
+│   ├── useRoster.ts           当前名单
+│   ├── usePermanentRoster.ts  名册（分组）
+│   ├── useBundles.ts          小组
+│   ├── useBlackWhiteList.ts   黑白名单
+│   ├── useSession.ts          本轮状态与抽取记录
+│   ├── usePicker.ts           抽取流程
+│   └── useDB.ts               IndexedDB 持久化
+├── utils/          纯函数：抽取算法、拼音、名单解析、导入导出
+├── types/          TypeScript 类型定义
+└── assets/styles/  base / layout / components 三段样式
 ```
 
-## 数据模型要点
+## 实现说明
 
-- **数据库主键 = UID**：每个名字条目有稳定 UID，允许同名不同 UID 共存
-- **黑白名单按 name 字符串**：改名后不会自动同步，需要手动维护
-- **候选池** = (临时 ∪ 常驻) − 黑名单 ∩ (白名单 or 全集) − 本会话已抽
-- **会话** = 一次"开新会话 → 多次抽取 → 结束"周期；当前会话 + 历史会话列表
-- **本地存储**：
-  - `kleros.roster.temporary` (sessionStorage)
-  - `kleros.roster.permanent` (localStorage)
-  - `kleros.lists.bw` (localStorage)
-  - `kleros.session.current` + `kleros.session.history` (localStorage)
-  - `kleros.prefs` (localStorage)
+**成员以名字为唯一标识。** 名单、名册、小组之间都按名字匹配，不依赖内部 ID。改名会同步到小组；名单清空后重新加回同名的人，小组会自动恢复。
 
-## 首版功能范围
+**抽取使用 Fisher-Yates 洗牌。** 洗一遍取前 N 个，剩余顺序同样随机，不是对随机数排序。
 
-✅ 可用：
-- 粘贴 / 手动 / 文件 三种方式添加临时名单
-- 常驻名单 CRUD
-- 黑/白名单（侧栏直接操作）
-- 单抽 / 多抽
-- 会话记录（手动开新会话 + 抽 N 人后自动开）
-- 上下文重命名（单条目）
-- 设置里的全局重命名（含历史/黑白名单同步选项）
-- 历史上限可调
+**抽签的最小单位是「签」。** 一个小组是一签，一个人也是一签，按签洗牌后再展开成员。
 
-⏳ 留待下版：
-- 抽取滚动动画（接口已在 `usePicker.trigger` 预留）
-- 暗色主题
-- 数据导入/导出 JSON
-- 合并重名条目
+---
 
-## 目录约定
-
-- 不写注释（除非必要）
-- 优先小、组合式组件，避免巨型 SFC
-- composable 集中处理状态，组件只负责渲染与交互
+各版本的变更记录见 `docs/updates/`。

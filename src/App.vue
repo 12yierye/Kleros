@@ -228,14 +228,16 @@ onBeforeUnmount(() => {
             @click="viewTab = 'roster'"
           >名单</button>
         </div>
-        <template v-if="viewTab === 'pick'">
-          <PickerControls @pick="onPick" />
-          <PickerStage />
-          <PickerHistory />
-        </template>
-        <template v-else>
-          <RosterPanel />
-        </template>
+        <Transition name="view-fade" mode="out-in">
+          <div v-if="viewTab === 'pick'" key="pick" class="view-panel">
+            <PickerControls @pick="onPick" />
+            <PickerStage />
+            <PickerHistory />
+          </div>
+          <div v-else key="roster" class="view-panel">
+            <RosterPanel />
+          </div>
+        </Transition>
       </main>
 
       <!-- 横向：左右并排（左抽取 · 右名单） -->

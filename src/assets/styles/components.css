@@ -12,6 +12,7 @@
   color: var(--color-text);
   transition: background 0.15s, border-color 0.15s, color 0.15s;
   white-space: nowrap;
+  user-select: none;
 }
 
 .btn:hover:not(:disabled) {
@@ -96,6 +97,7 @@
   gap: var(--sp-1);
   border-bottom: 1px solid var(--color-border);
   margin-bottom: var(--sp-3);
+  user-select: none;
 }
 
 .tab {
@@ -105,6 +107,7 @@
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   transition: color 0.15s, border-color 0.15s;
+  user-select: none;
 }
 
 .tab:hover {
@@ -155,8 +158,6 @@
   border-radius: var(--r-full);
   font-size: var(--fs-sm);
   cursor: default;
-  -webkit-user-select: none;
-  user-select: none;
   transition: background 0.15s, border-color 0.15s;
   max-width: 100%;
 }
@@ -501,6 +502,11 @@
   transition: background 0.15s, color 0.15s;
 }
 
+.radio-group__item:hover:not(.radio-group__item--active) {
+  background: var(--color-chip-bg-hover);
+  color: var(--color-text);
+}
+
 .radio-group__item--active {
   background: var(--color-bg-elev);
   color: var(--color-text);
@@ -612,6 +618,7 @@
 }
 
 .btn--undo:hover:not(:disabled) {
+  background: var(--color-chip-bg-hover);
   color: var(--color-text);
 }
 
@@ -1288,6 +1295,8 @@
 .settings-row__label {
   flex-shrink: 0;
   min-width: 84px;
+  display: inline-flex;
+  align-items: center;
   font-size: var(--fs-sm);
   color: var(--color-text);
 }
@@ -1344,16 +1353,56 @@
 }
 
 /* === Inline add area（并入当前名单卡片）=== */
+/* grid 0fr → 1fr 让高度能平滑过渡，内容高度自适应 */
 .add-area {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-bottom: 0;
+  transition: grid-template-rows 0.28s cubic-bezier(0.33, 1, 0.68, 1),
+              margin-bottom 0.28s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.add-area--open {
+  grid-template-rows: 1fr;
   margin-bottom: 12px;
+}
+
+.add-area__inner {
+  min-height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  /* 收起时等动画播完再隐藏，避免内容瞬间消失 */
+  transition: visibility 0s linear 0.28s;
+}
+
+.add-area--open .add-area__inner {
+  visibility: visible;
+  transition: visibility 0s;
+}
+
+.add-area__card {
   padding: 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--r-md);
   background: var(--color-bg);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.2s ease,
+              transform 0.28s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.add-area--open .add-area__card {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .add-block .tabs {
   margin-bottom: 10px;
+}
+
+/* 页签内容：切换时高度由 JS 过渡，内层做一次轻微淡入 */
+.add-panel__content {
+  animation: kleros-fade-in 0.2s ease;
 }
 
 .add-block .textarea {
@@ -1440,13 +1489,17 @@ input[type="checkbox"]:disabled {
   top: calc(100% + 8px);
   right: 0;
   z-index: 60;
+  /* 绝对定位下 auto 宽度会收缩到父元素（按钮）宽度，必须用 max-content 撑开 */
+  width: max-content;
+  max-width: 260px;
   padding: 6px 10px;
   border-radius: var(--r-sm);
   background: var(--tip-bg);
   color: var(--tip-fg);
   font-size: 11px;
   line-height: 1.4;
-  white-space: nowrap;
+  /* 支持文案里的换行符，短文案仍是单行 */
+  white-space: pre-line;
   box-shadow: var(--sh-md);
   opacity: 0;
   visibility: hidden;
@@ -1571,15 +1624,130 @@ input[type="checkbox"]:disabled {
 
 /* === Settings: range === */
 .range {
+  -webkit-appearance: none;
+  appearance: none;
   width: 240px;
   max-width: 100%;
-  accent-color: var(--color-primary);
+  height: 20px;
+  background: transparent;
   cursor: pointer;
+  --range-progress: 50%;
+}
+
+/* 轨道：已滑过的部分用主色，剩余用弱边框色 */
+.range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: var(--r-full);
+  background: linear-gradient(
+    to right,
+    var(--color-primary) 0 var(--range-progress),
+    var(--color-border-strong) var(--range-progress) 100%
+  );
+}
+
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--color-bg-elev);
+  border: 2px solid var(--color-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.range:hover::-webkit-slider-thumb {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 5px var(--color-primary-soft);
+}
+
+.range:active::-webkit-slider-thumb {
+  transform: scale(1.05);
+}
+
+.range:focus {
+  outline: none;
+}
+
+.range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--color-primary-soft),
+              0 0 0 4px var(--color-primary);
+}
+
+/* Firefox */
+.range::-moz-range-track {
+  height: 4px;
+  border-radius: var(--r-full);
+  background: var(--color-border-strong);
+}
+
+.range::-moz-range-progress {
+  height: 4px;
+  border-radius: var(--r-full);
+  background: var(--color-primary);
+}
+
+.range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-bg-elev);
+  border: 2px solid var(--color-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.range:hover::-moz-range-thumb {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 5px var(--color-primary-soft);
 }
 
 .speed-value {
-  min-width: 44px;
+  min-width: 48px;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  background: var(--color-bg-sunken);
+  text-align: center;
   font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
+}
+
+/* === 文本选择：只禁界面外壳，名单/结果/记录等内容保持可选 === */
+.app-header,
+.app-footer,
+.view-tabs,
+.side-tab,
+.block-head__text,
+.block-head__count,
+.panel-block__head,
+.panel-block__hint,
+.picker-bar,
+.draw-mode,
+.stepper,
+.radio-group,
+.theme-swatch,
+.tip__bubble,
+.hint__bubble,
+.modal__header,
+.modal-lead,
+.settings-section__title,
+.settings-row__label,
+.settings-hint,
+.field__label,
+.sep-preview,
+.speed-value,
+.empty,
+.reel,
+.picker-stage__sub,
+.lib-notice,
+.lib-group__head,
+.rel-card__head,
+.pick-log__time,
+.pick-log__count,
+.pick-log__undo,
+.member-pick__group-head,
+.rel-source__head {
+  user-select: none;
 }

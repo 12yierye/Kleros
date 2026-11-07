@@ -37,11 +37,13 @@ function onSettings() {
       </div>
 
       <div class="app-side__body">
-        <template v-if="active === 'filters'">
-          <BlackListSection />
-          <WhiteListSection />
-        </template>
-        <PickOptionsSection v-else />
+        <Transition name="side-fade" mode="out-in">
+          <div v-if="active === 'filters'" key="filters" class="side-view">
+            <BlackListSection />
+            <WhiteListSection />
+          </div>
+          <PickOptionsSection v-else key="options" class="side-view" />
+        </Transition>
       </div>
 
       <div class="app-side__footer">

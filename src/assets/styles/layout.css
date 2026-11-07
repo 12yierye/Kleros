@@ -194,3 +194,55 @@
   justify-content: space-between;
   gap: var(--sp-2);
 }
+
+/* === 视图切换：主区域（抽取 / 名单）与侧栏（过滤 / 参数） === */
+.view-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  flex: 1 0 auto;
+  min-height: 0;
+}
+
+.view-panel > * {
+  flex-shrink: 0;
+}
+
+.view-fade-enter-active,
+.view-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.view-fade-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.view-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.side-fade-enter-active,
+.side-fade-leave-active {
+  transition: opacity 0.13s ease, transform 0.13s ease;
+}
+
+.side-fade-enter-from {
+  opacity: 0;
+  transform: translateX(-5px);
+}
+
+.side-fade-leave-to {
+  opacity: 0;
+  transform: translateX(4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view-fade-enter-active,
+  .view-fade-leave-active,
+  .side-fade-enter-active,
+  .side-fade-leave-active {
+    transition: none;
+  }
+}

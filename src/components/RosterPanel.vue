@@ -141,8 +141,12 @@ function accentOf(uid: string): string {
         <button class="btn btn--sm btn--danger" :disabled="batchSelected.size === 0" @click="onDeleteSelected">删除</button>
       </div>
 
-      <div v-if="addOpen" class="add-area">
-        <InputPanel />
+      <div class="add-area" :class="{ 'add-area--open': addOpen }">
+        <div class="add-area__inner">
+          <div class="add-area__card">
+            <InputPanel />
+          </div>
+        </div>
       </div>
 
       <div v-if="currentEntries.length === 0" class="empty">还没有人，点「＋ 添加」，或从顶部「名册」取用</div>

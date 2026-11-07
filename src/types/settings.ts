@@ -40,12 +40,13 @@ export interface UserPreferences {
 
 /** 空结果文案默认值：每次启动随机显示一条 */
 export const DEFAULT_IDLE_TEXTS = [
-  '名单还是空的',
-  '还没有人可抽',
-  '先把名字放进来吧',
+  '好安静',
+  '没有人来过这里',
   '空空如也',
   '这里静悄悄的',
   '等一个人来',
+  '我在这里等你',
+  '会是谁呢？',
 ]
 
 export const PREFS_VERSION = 4
@@ -59,10 +60,10 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   theme: 'light',
   layoutMode: 'tabs',
   rememberLayout: true,
-  pickStyle: 'direct',
+  pickStyle: 'animate',
   drawMode: 'person',
   pickSeparator: '  ',
-  startButtonText: '开始抽取',
-  pauseButtonText: '看看是谁',
+  startButtonText: '开始',
+  pauseButtonText: '停止',
   idleTexts: [...DEFAULT_IDLE_TEXTS],
 }

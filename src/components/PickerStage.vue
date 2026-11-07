@@ -16,7 +16,7 @@ const { prefs } = useSettings()
 
 const {
   isPicking, isAnimating, blockAttempt, displayUnits, displayUids,
-  lastError, poolSize, effectiveCount, units, stopAnimate,
+  lastError, poolSize, pool, effectiveCount, units, stopAnimate,
 } = picker
 
 /** 与 CSS 里的 .reel__item 高度保持一致 */
@@ -57,8 +57,10 @@ function unitMembers(u: PickUnitRecord): string[] {
 }
 
 function buildLanes() {
-  // 按小组抽时 label 是小组名，按人抽时是人名
-  const labels = units.value.map(u => u.label)
+  // 按小组抽：抽签单位是小组名；按人抽：单位是每个人，不能被并成小组
+  const labels = prefs.value.drawMode === 'group'
+    ? units.value.map(u => u.label)
+    : pool.value.map(p => p.name)
   if (labels.length === 0) {
     lanes.value = []
     return

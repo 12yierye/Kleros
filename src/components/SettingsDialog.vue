@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useUi } from '@/composables/useUi'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
@@ -11,6 +11,8 @@ import { deleteDB } from '@/composables/useDB'
 import { downloadExport } from '@/utils/export'
 import { importData } from '@/utils/import'
 import { readFileAsText } from '@/utils/nameParser'
+import ToggleSwitch from './ToggleSwitch.vue'
+import HintTip from './HintTip.vue'
 
 const ui = useUi()
 const roster = useRoster()
@@ -22,15 +24,27 @@ const { prefs, update, reset } = useSettings()
 
 const importMsg = ref<{ ok: boolean; text: string } | null>(null)
 
+/** 启动时沿用上次布局 */
+const rememberLayout = computed({
+  get: () => prefs.value.rememberLayout,
+  set: (v: boolean) => update('rememberLayout', v),
+})
+
+/** 速度滑块的已填充比例（0.1–3） */
+const speedProgress = computed(() => {
+  const v = Math.min(3, Math.max(0.1, prefs.value.scrollSpeed))
+  return `${(((v - 0.1) / 2.9) * 100).toFixed(2)}%`
+})
+
 const layouts: { key: 'tabs' | 'stacked' | 'split'; label: string; tip: string }[] = [
-  { key: 'tabs', label: '分页', tip: '抽取与名单切换查看' },
-  { key: 'split', label: '横向', tip: '左右并排：左抽取 · 右名单' },
-  { key: 'stacked', label: '纵向', tip: '上下堆叠：上抽取 · 下名单' },
+  { key: 'tabs', label: '分页', tip: '切换' },
+  { key: 'split', label: '横向', tip: '左右' },
+  { key: 'stacked', label: '纵向', tip: '上下' },
 ]
 
 const styles: { key: 'direct' | 'animate'; label: string }[] = [
-  { key: 'direct', label: '直接出结果' },
-  { key: 'animate', label: '滚动动画' },
+  { key: 'direct', label: '直接出现' },
+  { key: 'animate', label: '滚动选择' },
 ]
 
 function close() {
@@ -175,7 +189,10 @@ function onImportClick() {
             <div class="settings-section__title">界面</div>
 
             <div class="settings-row">
-              <span class="settings-row__label">布局</span>
+              <span class="settings-row__label">
+                布局
+                <HintTip :text="'分页：两个页面切换\n横向：左右同屏（抽取在左 名单在右）\n纵向：上下同屏（抽取在上 名单在下）'" />
+              </span>
               <div class="settings-row__control">
                 <div class="radio-group">
                   <span v-for="l in layouts" :key="l.key" class="tip">
@@ -189,19 +206,14 @@ function onImportClick() {
                 </div>
               </div>
             </div>
-            <p class="settings-hint">分页：两个页面切换 · 横向：左右同屏 · 纵向：上下同屏</p>
 
             <div class="settings-row">
-              <span class="settings-row__label">启动时</span>
+              <span class="settings-row__label">
+                记住布局
+                <HintTip text="启动时沿用上次使用的界面布局" />
+              </span>
               <div class="settings-row__control">
-                <label class="checkbox">
-                  <input
-                    type="checkbox"
-                    :checked="prefs.rememberLayout"
-                    @change="update('rememberLayout', ($event.target as HTMLInputElement).checked)"
-                  />
-                  沿用上次布局
-                </label>
+                <ToggleSwitch v-model="rememberLayout" label="记住布局" />
               </div>
             </div>
           </section>
@@ -210,7 +222,10 @@ function onImportClick() {
             <div class="settings-section__title">抽取</div>
 
             <div class="settings-row">
-              <span class="settings-row__label">抽取方式</span>
+              <span class="settings-row__label">
+                抽取方式
+                <HintTip :text="'直接出结果：只需点一下\n滚动动画：点一下开始滚动，再点一下定格'" />
+              </span>
               <div class="settings-row__control">
                 <div class="radio-group">
                   <button
@@ -223,10 +238,12 @@ function onImportClick() {
                 </div>
               </div>
             </div>
-            <p class="settings-hint">滚动动画：点一下开始滚名字，再点一下定格；多人时并排滚动</p>
 
             <div class="settings-row">
-              <span class="settings-row__label">滚动速度</span>
+              <span class="settings-row__label">
+                滚动速度
+                <HintTip :text="'默认 x1.0\n数值越大滚得越快'" />
+              </span>
               <div class="settings-row__control">
                 <input
                   type="range"
@@ -234,6 +251,7 @@ function onImportClick() {
                   max="3"
                   step="0.1"
                   :value="prefs.scrollSpeed"
+                  :style="{ '--range-progress': speedProgress }"
                   @input="update('scrollSpeed', clampSpeed(+($event.target as HTMLInputElement).value))"
                   class="range"
                   aria-label="滚动速度"
@@ -241,10 +259,12 @@ function onImportClick() {
                 <span class="speed-value">×{{ prefs.scrollSpeed.toFixed(1) }}</span>
               </div>
             </div>
-            <p class="settings-hint">0.1 – 3.0，默认 1.0；数值越大滚得越快</p>
 
             <div class="settings-row">
-              <span class="settings-row__label">分隔符</span>
+              <span class="settings-row__label">
+                分隔符
+                <HintTip :text="'同时抽中多人时的分隔符\n默认两个空格，留空默认'" />
+              </span>
               <div class="settings-row__control" style="flex: 1;">
                 <input
                   :value="prefs.pickSeparator"
@@ -257,48 +277,53 @@ function onImportClick() {
                 <span class="sep-preview">张三{{ prefs.pickSeparator }}李四</span>
               </div>
             </div>
-            <p class="settings-hint">同时抽中多人时的分隔；默认两个空格，留空也按两个空格处理</p>
 
             <div class="settings-row">
-              <span class="settings-row__label">按钮文案</span>
+              <span class="settings-row__label">
+                按钮文案
+                <HintTip :text="'左：开始按钮的文案\n右：停止滚动的按钮文案'" />
+              </span>
               <div class="settings-row__control" style="flex: 1;">
                 <input
                   :value="prefs.startButtonText"
-                  @change="update('startButtonText', ($event.target as HTMLInputElement).value || '开始抽取')"
+                  @change="update('startButtonText', ($event.target as HTMLInputElement).value || '开始')"
                   class="input"
-                  placeholder="开始抽取"
+                  placeholder="开始"
                 />
                 <input
                   :value="prefs.pauseButtonText"
-                  @change="update('pauseButtonText', ($event.target as HTMLInputElement).value || '看看是谁')"
+                  @change="update('pauseButtonText', ($event.target as HTMLInputElement).value || '停止')"
                   class="input"
-                  placeholder="看看是谁"
+                  placeholder="停止"
                 />
               </div>
             </div>
-            <p class="settings-hint">左：开始 · 右：滚动动画停下的按钮</p>
 
             <div class="settings-row">
-              <span class="settings-row__label">空结果文案</span>
+              <span class="settings-row__label">
+                空结果文案
+                <HintTip :text="'没有可抽的人时，结果区随机显示其中一条\n每次启动重新随机'" />
+              </span>
               <div class="settings-row__control">
                 <span class="text-subtle" style="font-size: 12px;">{{ prefs.idleTexts?.length ?? 0 }} 条</span>
                 <button class="btn btn--sm" @click="openIdleTexts">调整文案</button>
               </div>
             </div>
-            <p class="settings-hint">没有可抽的人时，结果区随机显示其中一条；每次启动重新随机</p>
           </section>
 
           <section class="settings-section">
             <div class="settings-section__title">数据</div>
 
             <div class="settings-row">
-              <span class="settings-row__label">备份</span>
+              <span class="settings-row__label">
+                备份
+                <HintTip :text="'导出全部数据\n导入会覆盖现有数据'" />
+              </span>
               <div class="settings-row__control">
                 <button class="btn btn--sm" @click="onExport">导出 JSON</button>
                 <button class="btn btn--sm" @click="onImportClick">导入 JSON</button>
               </div>
             </div>
-            <p class="settings-hint">导出全部数据；导入会覆盖现有数据</p>
             <div
               v-if="importMsg"
               class="settings-hint"
@@ -315,7 +340,10 @@ function onImportClick() {
             <div class="settings-section__title">高级</div>
 
             <div class="settings-row">
-              <span class="settings-row__label">维护</span>
+              <span class="settings-row__label">
+                维护
+                <HintTip :text="'全局重命名：按名字批量替换\n清除缓存：抹除全部存储并刷新'" />
+              </span>
               <div class="settings-row__control" style="flex-wrap: wrap; justify-content: flex-end;">
                 <button class="btn btn--sm" @click="openGlobalRename">全局重命名</button>
                 <button class="btn btn--sm" @click="openDBInspect">查看数据库</button>
@@ -323,7 +351,6 @@ function onImportClick() {
                 <button class="btn btn--sm btn--danger" @click="onClearAll">清空全部数据</button>
               </div>
             </div>
-            <p class="settings-hint">全局重命名：按名字批量替换 · 清除缓存：抹除全部存储并刷新</p>
           </section>
         </div>
       </div>

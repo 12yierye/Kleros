@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { parseNamesFromText, parseNamesFromCSV, readFileAsText } from '@/utils/nameParser'
@@ -20,6 +20,46 @@ function addFromBook(g: PermanentGroup) {
 
 type Tab = 'paste' | 'manual' | 'file' | 'book'
 const tab = ref<Tab>('paste')
+
+/** 内容区：切换页签时高度平滑过渡 */
+const panelRef = ref<HTMLElement | null>(null)
+
+watch(tab, async () => {
+  const el = panelRef.value
+  if (!el) return
+  const from = el.getBoundingClientRect().height
+  // 清掉上一次可能残留的锁定
+  el.style.height = ''
+  el.style.transition = ''
+  el.style.overflow = ''
+
+  await nextTick()
+  if (!el.isConnected) return
+  const to = el.offsetHeight
+  if (Math.abs(to - from) < 2) return
+
+  el.style.overflow = 'hidden'
+  el.style.height = `${from}px`
+  el.style.transition = 'none'
+  void el.offsetHeight
+  el.style.transition = 'height 0.22s cubic-bezier(0.33, 1, 0.68, 1)'
+  el.style.height = `${to}px`
+
+  let done = false
+  const finish = () => {
+    if (done) return
+    done = true
+    el.removeEventListener('transitionend', onEnd)
+    el.style.height = ''
+    el.style.transition = ''
+    el.style.overflow = ''
+  }
+  const onEnd = (e: TransitionEvent) => {
+    if (e.target === el && e.propertyName === 'height') finish()
+  }
+  el.addEventListener('transitionend', onEnd)
+  window.setTimeout(finish, 320)
+})
 
 const pasteText = ref('')
 const manualText = ref('')
@@ -106,53 +146,57 @@ async function onFile(e: Event) {
       >从名册</button>
     </div>
 
-    <div v-if="tab === 'paste'">
-      <textarea
-        v-model="pasteText"
-        class="textarea"
-        placeholder="空行 空格 逗号 分号 制表符 均可分隔"
-      />
-      <div style="display: flex; gap: 8px; margin-top: 8px;">
-        <button class="btn btn--primary" @click="onAddToRoster" :disabled="!pasteText.trim()">
-          解析并加入
-        </button>
-        <button class="btn btn--ghost" @click="pasteText = ''" :disabled="!pasteText">清空输入</button>
-      </div>
-    </div>
+    <div ref="panelRef" class="add-panel">
+      <div :key="tab" class="add-panel__content">
+        <div v-if="tab === 'paste'">
+          <textarea
+            v-model="pasteText"
+            class="textarea"
+            placeholder="空行 空格 逗号 分号 制表符 均可分隔"
+          />
+          <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <button class="btn btn--primary" @click="onAddToRoster" :disabled="!pasteText.trim()">
+              解析并加入
+            </button>
+            <button class="btn btn--ghost" @click="pasteText = ''" :disabled="!pasteText">清空输入</button>
+          </div>
+        </div>
 
-    <div v-else-if="tab === 'manual'">
-      <div style="display: flex; gap: 8px;">
-        <input
-          v-model="manualText"
-          class="input"
-          placeholder="输入一个人名后回车加入"
-          @keyup.enter="onAddOneManual"
-        />
-        <button class="btn btn--primary" @click="onAddOneManual" :disabled="!manualText.trim()">加入</button>
-      </div>
-      <div class="text-subtle" style="font-size: 12px; margin-top: 6px;">逐个加入，适合临时补一个人</div>
-    </div>
+        <div v-else-if="tab === 'manual'">
+          <div style="display: flex; gap: 8px;">
+            <input
+              v-model="manualText"
+              class="input"
+              placeholder="输入一个人名后回车加入"
+              @keyup.enter="onAddOneManual"
+            />
+            <button class="btn btn--primary" @click="onAddOneManual" :disabled="!manualText.trim()">加入</button>
+          </div>
+          <div class="text-subtle" style="font-size: 12px; margin-top: 6px;">逐个加入，适合临时补一个人</div>
+        </div>
 
-    <div v-else-if="tab === 'file'">
-      <label
-        style="display: block; padding: 24px; border: 2px dashed var(--color-border-strong); border-radius: 8px; text-align: center; cursor: pointer;"
-      >
-        <input type="file" accept=".txt,.csv" @change="onFile" style="display: none;" />
-        <div class="text-muted">点击选择 .txt / .csv 文件</div>
-        <div class="text-subtle" style="font-size: 12px; margin-top: 4px;">CSV 仅取每行第一列</div>
-      </label>
-    </div>
+        <div v-else-if="tab === 'file'">
+          <label
+            style="display: block; padding: 24px; border: 2px dashed var(--color-border-strong); border-radius: 8px; text-align: center; cursor: pointer;"
+          >
+            <input type="file" accept=".txt,.csv" @change="onFile" style="display: none;" />
+            <div class="text-muted">点击选择 .txt / .csv 文件</div>
+            <div class="text-subtle" style="font-size: 12px; margin-top: 4px;">CSV 仅取每行第一列</div>
+          </label>
+        </div>
 
-    <div v-else>
-      <div v-if="bookList.length === 0" class="empty" style="padding: 16px 0;">
-        名册里还没有人
-      </div>
-      <div v-else class="book-pick">
-        <div v-for="g in bookList" :key="g.id" class="book-pick__row">
-          <span class="book-pick__name">{{ g.name }}</span>
-          <span class="book-pick__count">{{ g.members.length }} 人</span>
-          <span class="flex-1"></span>
-          <button class="btn btn--sm btn--primary" @click="addFromBook(g)">加入当前名单</button>
+        <div v-else>
+          <div v-if="bookList.length === 0" class="empty" style="padding: 16px 0;">
+            名册里还没有人
+          </div>
+          <div v-else class="book-pick">
+            <div v-for="g in bookList" :key="g.id" class="book-pick__row">
+              <span class="book-pick__name">{{ g.name }}</span>
+              <span class="book-pick__count">{{ g.members.length }} 人</span>
+              <span class="flex-1"></span>
+              <button class="btn btn--sm btn--primary" @click="addFromBook(g)">加入当前名单</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

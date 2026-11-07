@@ -381,6 +381,11 @@
   padding: var(--sp-4);
 }
 
+/* 确认框永远在最上层：名册/小组弹窗里点删除，确认框不能被压在下面 */
+.modal-backdrop--confirm {
+  z-index: var(--z-confirm);
+}
+
 .modal {
   background: var(--color-bg-elev);
   border-radius: var(--r-lg);
@@ -413,6 +418,22 @@
   overflow-y: auto;
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* 高度没有变化空间时的兜底反馈（见 useModalHeight） */
+.modal__body--switch {
+  animation: kleros-modal-switch 0.22s ease;
+}
+
+@keyframes kleros-modal-switch {
+  from {
+    opacity: 0.45;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .modal__footer {
@@ -1207,24 +1228,6 @@
   text-decoration: underline;
 }
 
-.chip__add {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--r-full);
-  font-size: 12px;
-  line-height: 1;
-  color: var(--color-text-subtle);
-  transition: background 0.15s, color 0.15s;
-}
-
-.chip__add:hover {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-}
-
 .flash {
   position: fixed;
   left: 50%;
@@ -1375,12 +1378,9 @@
 
 /* 组内成员的删除按钮默认隐藏，避免误删 */
 .chip--lib .chip__close {
-  opacity: 0;
-  transition: opacity 0.12s, background 0.12s, color 0.12s;
-}
-
-.chip--lib:hover .chip__close {
+  /* 删除按钮常显，不藏在 hover 里 */
   opacity: 1;
+  transition: background 0.12s, color 0.12s;
 }
 
 /* === 自定义复选框 === */
@@ -1531,17 +1531,30 @@ input[type="checkbox"]:disabled {
 }
 
 /* 添加面板里的「从名册加入」 */
-.add-from-book {
+.book-pick {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 6px;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px dashed var(--color-border);
+  max-height: 200px;
+  overflow-y: auto;
 }
 
-.add-from-book__label {
+.book-pick__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-md);
+  background: var(--color-bg-elev);
+}
+
+.book-pick__name {
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+}
+
+.book-pick__count {
   font-size: 11px;
   color: var(--color-text-subtle);
 }

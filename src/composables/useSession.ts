@@ -1,7 +1,7 @@
 /**
  * 本轮抽取状态
- * - 只有一份「本轮」：抽了谁、绑定小组
- * - 开始新一轮 = 清空抽取记录，绑定小组保留
+ * - 只有一份「本轮」：抽了谁、小组
+ * - 开始新一轮 = 清空抽取记录，小组保留
  */
 
 import { watch, computed, type Ref } from 'vue'
@@ -9,7 +9,7 @@ import { useDB } from './useDB'
 import { useSettings } from './useSettings'
 import { uid } from '@/utils/id'
 import { STORAGE_KEYS, UID_PREFIX } from '@/constants'
-import type { Round, PickMode, PickRecord } from '@/types/session'
+import type { Round, PickMode, PickRecord, PickUnitRecord } from '@/types/session'
 import type { Bundle, BundleMember } from '@/types/bundle'
 
 /** 旧版本把小组存在 relations / bindingGroups 字段里，且带 mode（可能含已废弃的互斥） */
@@ -17,7 +17,7 @@ interface LegacyBundle {
   id: string
   name?: string
   color?: string
-  members?: BundleMember[]
+  members?: Partial<BundleMember>[]
   createdAt?: number
   mode?: string
 }
@@ -26,7 +26,7 @@ type LegacyRound = Round & {
   bindingGroups?: LegacyBundle[]
 }
 
-/** 把旧结构（relations / bindingGroups，可能含已废弃的互斥）统一成绑定小组 */
+/** 把旧结构（relations / bindingGroups，可能含已废弃的互斥）统一成小组 */
 export function normalizeBundles(input: unknown): Bundle[] {
   if (!Array.isArray(input)) return []
   return (input as LegacyBundle[])
@@ -35,7 +35,16 @@ export function normalizeBundles(input: unknown): Bundle[] {
       id: g.id,
       name: g.name ?? '未命名小组',
       color: g.color ?? '#4A90D9',
-      members: Array.isArray(g.members) ? g.members : [],
+      // 老数据只有 uid，name 由 useBundles 在数据载入后按 uid 回填
+      members: Array.isArray(g.members)
+        ? g.members
+          .filter(m => !!m && typeof m.uid === 'string')
+          .map(m => ({
+            uid: m.uid!,
+            name: typeof m.name === 'string' ? m.name : '',
+            addedAt: m.addedAt ?? Date.now(),
+          }))
+        : [],
       createdAt: g.createdAt ?? Date.now(),
     }))
 }
@@ -110,9 +119,10 @@ export function useSession() {
     }
   }
 
-  function appendPick(uids: string[], mode: PickMode) {
+  function appendPick(units: PickUnitRecord[], mode: PickMode) {
     if (!current.value) return
-    const rec: PickRecord = { time: Date.now(), mode, uids: [...uids] }
+    const uids = units.flatMap(u => u.uids)
+    const rec: PickRecord = { time: Date.now(), mode, uids, units }
     current.value.picks.push(rec)
     current.value.totalPicked += uids.length
   }

@@ -4,6 +4,7 @@ import { useUi } from '@/composables/useUi'
 import { useBundles } from '@/composables/useBundles'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
+import { useModalHeight } from '@/composables/useModalHeight'
 import { BINDING_GROUP_COLORS } from '@/constants'
 import type { Bundle } from '@/types/bundle'
 
@@ -11,6 +12,9 @@ const ui = useUi()
 const rel = useBundles()
 const roster = useRoster()
 const lib = usePermanentRoster()
+
+const modalRef = ref<HTMLElement | null>(null)
+const { animateHeight } = useModalHeight(modalRef)
 
 const isOpen = ref(false)
 const editorOpen = ref(false)
@@ -50,6 +54,16 @@ const nameOfMap = computed(() => {
 
 const nameOf = (uid: string) => nameOfMap.value.get(uid) ?? uid.slice(-6)
 
+/** 名字 → uid（当前名单优先），保存时用 */
+const uidByName = computed(() => {
+  const m = new Map<string, string>()
+  for (const it of currentItems.value) m.set(it.name, it.uid)
+  for (const g of bookItems.value) {
+    for (const it of g.items) if (!m.has(it.name)) m.set(it.name, it.uid)
+  }
+  return m
+})
+
 const canSave = computed(() => selected.value.size >= 2 && name.value.trim().length > 0)
 
 function resetEditor() {
@@ -65,39 +79,48 @@ function close() {
 }
 
 function startNew() {
-  resetEditor()
-  editorOpen.value = true
+  void animateHeight(() => {
+    resetEditor()
+    editorOpen.value = true
+  })
   focusEditor()
 }
 
 function startEdit(g: Bundle) {
-  editingId.value = g.id
-  editorOpen.value = true
-  name.value = g.name
-  color.value = g.color
-  selected.value = new Set(g.members.map(m => m.uid))
+  void animateHeight(() => {
+    editingId.value = g.id
+    editorOpen.value = true
+    name.value = g.name
+    color.value = g.color
+    selected.value = new Set(g.members.map(m => m.name).filter(Boolean))
+  })
   focusEditor()
+}
+
+function onCancel() {
+  void animateHeight(resetEditor)
 }
 
 function focusEditor() {
   void nextTick(() => {
-    document.getElementById('bundle-editor')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    document.getElementById('bundle-name')?.focus()
   })
 }
 
-function toggle(uid: string) {
+/** 选中集合以「名字」为准：同一个名字可能同时出现在当前名单和名册里，uid 不同 */
+function toggle(name: string) {
   const s = new Set(selected.value)
-  if (s.has(uid)) s.delete(uid)
-  else s.add(uid)
+  if (s.has(name)) s.delete(name)
+  else s.add(name)
   selected.value = s
 }
 
-function selectAll(uids: string[]) {
+function selectAll(names: string[]) {
   const s = new Set(selected.value)
-  const all = uids.every(u => s.has(u))
-  for (const u of uids) {
-    if (all) s.delete(u)
-    else s.add(u)
+  const all = names.every(n => s.has(n))
+  for (const n of names) {
+    if (all) s.delete(n)
+    else s.add(n)
   }
   selected.value = s
 }
@@ -106,11 +129,11 @@ function clearSelection() {
   selected.value = new Set()
 }
 
-function removeMember(g: Bundle, uid: string) {
-  rel.removeMembers(g.id, [uid])
+function removeMember(g: Bundle, name: string) {
+  rel.removeMembers(g.id, [name])
   if (editingId.value === g.id) {
     const s = new Set(selected.value)
-    s.delete(uid)
+    s.delete(name)
     selected.value = s
   }
 }
@@ -122,80 +145,78 @@ function dissolve(g: Bundle) {
 
 function save() {
   if (!canSave.value) return
-  const uids = [...selected.value]
+  const refs = [...selected.value].map(n => ({ uid: uidByName.value.get(n) ?? '', name: n }))
 
   if (editingId.value) {
     const target = rel.all.value.find(r => r.id === editingId.value)
     if (!target) { resetEditor(); return }
     rel.rename(target.id, name.value)
     rel.recolor(target.id, color.value)
-    const existing = new Set(target.members.map(m => m.uid))
-    const toRemove = [...existing].filter(u => !uids.includes(u))
-    const toAdd = uids.filter(u => !existing.has(u))
+    const existing = new Set(target.members.map(m => m.name))
+    const toRemove = [...existing].filter(n => !selected.value.has(n))
+    const toAdd = refs.filter(r => !existing.has(r.name))
     if (toRemove.length > 0) rel.removeMembers(target.id, toRemove)
     if (toAdd.length > 0) rel.addMembers(target.id, toAdd)
   } else {
-    rel.create({ name: name.value, color: color.value, memberUids: uids })
+    rel.create({ name: name.value, color: color.value, members: refs })
   }
-  resetEditor()
+  void animateHeight(resetEditor)
 }
 </script>
 
 <template>
   <Transition name="modal">
     <div v-if="isOpen" class="modal-backdrop" @click.self="close">
-      <div class="modal modal--wide">
+      <div ref="modalRef" class="modal modal--wide">
         <div class="modal__header">
-          <span>绑定小组</span>
+          <span>{{ editorOpen ? (editingId ? '编辑小组' : '新建小组') : '小组' }}</span>
           <button class="btn btn--ghost btn--icon" @click="close" aria-label="关闭">×</button>
         </div>
 
         <div class="modal__body">
-          <p class="modal-lead">同一小组里的人会一起被抽中，不会被拆开。</p>
+          <!-- 列表视图 -->
+          <template v-if="!editorOpen">
+            <p class="modal-lead">同一小组里的人会一起被抽中，不会被拆开。</p>
 
-          <div v-if="list.length === 0 && !editorOpen" class="empty" style="padding: 10px 0 14px;">
-            还没有小组
-          </div>
+            <div v-if="list.length === 0" class="empty" style="padding: 10px 0 14px;">
+              还没有小组
+            </div>
 
-          <div v-else-if="list.length > 0" class="rel-list">
-            <div
-              v-for="g in list"
-              :key="g.id"
-              class="rel-card"
-              :class="{ 'rel-card--editing': editingId === g.id }"
-            >
-              <div class="rel-card__head">
-                <span class="rel-card__dot" :style="{ background: g.color }"></span>
-                <b class="rel-card__name">{{ g.name }}</b>
-                <span class="rel-card__count">{{ g.members.length }} 人</span>
-                <span class="flex-1"></span>
-                <button class="btn btn--ghost rel-card__btn" @click="startEdit(g)">编辑</button>
-                <button class="btn btn--ghost rel-card__btn" @click="dissolve(g)">拆散</button>
-              </div>
-              <div class="rel-card__members">
-                <span v-for="m in g.members" :key="m.uid" class="rel-member">
-                  <span class="rel-member__name">{{ nameOf(m.uid) }}</span>
-                  <button class="rel-member__remove" title="移除" @click="removeMember(g, m.uid)">×</button>
-                </span>
+            <div v-else class="rel-list">
+              <div
+                v-for="g in list"
+                :key="g.id"
+                class="rel-card"
+              >
+                <div class="rel-card__head">
+                  <span class="rel-card__dot" :style="{ background: g.color }"></span>
+                  <b class="rel-card__name">{{ g.name }}</b>
+                  <span class="rel-card__count">{{ g.members.length }} 人</span>
+                  <span class="flex-1"></span>
+                  <button class="btn btn--ghost rel-card__btn" @click="startEdit(g)">编辑</button>
+                  <button class="btn btn--ghost rel-card__btn" @click="dissolve(g)">拆散</button>
+                </div>
+                <div class="rel-card__members">
+                  <span v-for="m in g.members" :key="m.name || m.uid" class="rel-member">
+                    <span class="rel-member__name">{{ m.name || nameOf(m.uid) }}</span>
+                    <button class="rel-member__remove" title="移除" @click="removeMember(g, m.name || nameOf(m.uid))">×</button>
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div v-if="!editorOpen" style="margin-top: 14px;">
-            <button class="btn btn--primary" @click="startNew">＋ 新建小组</button>
-          </div>
-
-          <div v-else id="bundle-editor" class="rel-editor">
-            <div class="rel-editor__head">
-              <b>{{ editingId ? '编辑小组' : '新建小组' }}</b>
-              <span class="text-subtle" style="font-size: 11px;">至少 2 人 · 已选 {{ selected.size }}</span>
-              <span class="flex-1"></span>
-              <button class="btn btn--sm" @click="resetEditor">取消</button>
+            <div style="margin-top: 14px;">
+              <button class="btn btn--primary" @click="startNew">＋ 新建小组</button>
             </div>
+          </template>
+
+          <!-- 编辑视图：整块切换，不在列表下面展开 -->
+          <template v-else>
+            <p class="modal-lead">勾选至少 2 人，抽中时整组一起出。</p>
 
             <div class="field">
               <label class="field__label">名称</label>
-              <input v-model="name" class="input" placeholder="例如：双人搭档" style="max-width: 260px;" />
+              <input id="bundle-name" v-model="name" class="input" placeholder="例如：双人搭档" style="max-width: 260px;" />
             </div>
 
             <div class="field">
@@ -215,7 +236,10 @@ function save() {
             </div>
 
             <div class="field">
-              <label class="field__label">成员</label>
+              <label class="field__label">
+                成员
+                <span class="text-subtle" style="font-weight: 400;">已选 {{ selected.size }} · 至少 2 人</span>
+              </label>
 
               <div v-if="currentItems.length === 0 && bookItems.length === 0" class="empty" style="padding: 8px 0;">
                 当前名单和名册里都还没有人
@@ -225,16 +249,16 @@ function save() {
                 <div v-if="currentItems.length > 0" class="rel-source">
                   <div class="rel-source__head">
                     <span>当前名单（{{ currentItems.length }}）</span>
-                    <button class="btn btn--ghost btn--xs" @click="selectAll(currentItems.map(i => i.uid))">全选</button>
+                    <button class="btn btn--ghost btn--xs" @click="selectAll(currentItems.map(i => i.name))">全选</button>
                   </div>
                   <div class="chip-list">
                     <label
                       v-for="m in currentItems"
-                      :key="m.uid"
+                      :key="m.name"
                       class="pick-chip"
-                      :class="{ 'pick-chip--on': selected.has(m.uid) }"
+                      :class="{ 'pick-chip--on': selected.has(m.name) }"
                     >
-                      <input type="checkbox" :checked="selected.has(m.uid)" @change="toggle(m.uid)" />
+                      <input type="checkbox" :checked="selected.has(m.name)" @change="toggle(m.name)" />
                       <span class="ellipsis">{{ m.name }}</span>
                     </label>
                   </div>
@@ -243,35 +267,37 @@ function save() {
                 <div v-for="bk in bookItems" :key="bk.id" class="rel-source">
                   <div class="rel-source__head">
                     <span>名册 · {{ bk.name }}（{{ bk.items.length }}）</span>
-                    <button class="btn btn--ghost btn--xs" @click="selectAll(bk.items.map(i => i.uid))">整册选</button>
+                    <button class="btn btn--ghost btn--xs" @click="selectAll(bk.items.map(i => i.name))">整册选</button>
                   </div>
                   <div class="chip-list">
                     <label
                       v-for="m in bk.items"
-                      :key="m.uid"
+                      :key="m.name"
                       class="pick-chip"
-                      :class="{ 'pick-chip--on': selected.has(m.uid) }"
+                      :class="{ 'pick-chip--on': selected.has(m.name) }"
                     >
-                      <input type="checkbox" :checked="selected.has(m.uid)" @change="toggle(m.uid)" />
+                      <input type="checkbox" :checked="selected.has(m.name)" @change="toggle(m.name)" />
                       <span class="ellipsis">{{ m.name }}</span>
                     </label>
                   </div>
                 </div>
               </div>
 
-              <div class="rel-editor__actions">
-                <button class="btn btn--sm" :disabled="selected.size === 0" @click="clearSelection">清空选择</button>
-                <span class="flex-1"></span>
-                <button class="btn btn--sm btn--primary" :disabled="!canSave" @click="save">
-                  {{ editingId ? '保存' : '创建' }}
-                </button>
+              <div v-if="currentItems.length > 0 || bookItems.length > 0" style="margin-top: 8px;">
+                <button class="btn btn--sm" :disabled="selected.size === 0" @click="clearSelection">清空已选</button>
               </div>
             </div>
-          </div>
+          </template>
         </div>
 
         <div class="modal__footer">
-          <button class="btn btn--primary" @click="close">完成</button>
+          <template v-if="editorOpen">
+            <button class="btn" @click="onCancel">取消</button>
+            <button class="btn btn--primary" :disabled="!canSave" @click="save">
+              {{ editingId ? '保存小组' : '创建小组' }}
+            </button>
+          </template>
+          <button v-else class="btn btn--primary" @click="close">关闭</button>
         </div>
       </div>
     </div>
@@ -290,11 +316,6 @@ function save() {
   border-radius: var(--r-md);
   background: var(--color-bg);
   overflow: hidden;
-}
-
-.rel-card--editing {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-soft);
 }
 
 .rel-card__head {
@@ -366,19 +387,6 @@ function save() {
   color: var(--color-text);
 }
 
-.rel-editor {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--color-border);
-}
-
-.rel-editor__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
 .rel-swatch {
   width: 22px;
   height: 22px;
@@ -415,12 +423,5 @@ function save() {
   margin-bottom: 6px;
   font-size: 11px;
   color: var(--color-text-subtle);
-}
-
-.rel-editor__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
 }
 </style>

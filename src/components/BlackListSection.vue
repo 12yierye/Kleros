@@ -22,6 +22,6 @@ const { list, addBlack, removeBlack, clearBlack } = useBlackWhiteList()
       </span>
     </div>
 
-    <NamePicker :exclude="list.black" placeholder="搜索要排除的人…" @pick="addBlack" />
+    <NamePicker :exclude="list.black" placeholder="搜索要排除的人（可拼音）…" @pick="addBlack" />
   </div>
 </template>

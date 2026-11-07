@@ -51,7 +51,7 @@ function normalizeSep(v: string) {
 function onClearAll() {
   void ui.askConfirm({
     title: '清空全部数据？',
-    message: '将删除当前名单、名册、绑定小组、黑白名单、全部抽取记录与偏好，并开启新一轮。此操作不可撤销。',
+    message: '将删除当前名单、名册、小组、黑白名单、全部抽取记录与偏好，并开启新一轮。此操作不可撤销。',
     danger: true,
     confirmText: '清空',
   }).then(ok => {
@@ -92,6 +92,10 @@ function onClearCache() {
 
 function openGlobalRename() {
   ui.openModal('globalRename')
+}
+
+function openIdleTexts() {
+  ui.openModal('idleTexts')
 }
 
 function onExport() {
@@ -273,6 +277,15 @@ function onImportClick() {
               </div>
             </div>
             <p class="settings-hint">左：开始 · 右：滚动动画停下的按钮</p>
+
+            <div class="settings-row">
+              <span class="settings-row__label">空结果文案</span>
+              <div class="settings-row__control">
+                <span class="text-subtle" style="font-size: 12px;">{{ prefs.idleTexts?.length ?? 0 }} 条</span>
+                <button class="btn btn--sm" @click="openIdleTexts">调整文案</button>
+              </div>
+            </div>
+            <p class="settings-hint">没有可抽的人时，结果区随机显示其中一条；每次启动重新随机</p>
           </section>
 
           <section class="settings-section">

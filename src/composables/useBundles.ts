@@ -1,7 +1,8 @@
 /**
- * 绑定小组管理
+ * 小组管理
  * 数据存在当前轮的 bundles 字段（跨轮保留）
- * 名单增减时自动清理引用了不存在 uid 的成员
+ * 成员以「名字」为准（uid 只是线索）：名单清空重加、名册/名单同名互通都能正确成组
+ * 小组不随名单变动自动删除：名单清空后再加回同名的人，小组自动恢复
  */
 
 import { computed, watch, type ComputedRef } from 'vue'
@@ -10,7 +11,13 @@ import { useRoster } from './useRoster'
 import { usePermanentRoster } from './usePermanentRoster'
 import { uid } from '@/utils/id'
 import { UID_PREFIX } from '@/constants'
-import type { Bundle } from '@/types/bundle'
+import type { Bundle, BundleMember } from '@/types/bundle'
+
+/** 引用一个成员：名字为准，uid 仅作辅助 */
+export interface MemberRef {
+  uid: string
+  name: string
+}
 
 let _instance: ReturnType<typeof create> | undefined
 
@@ -28,23 +35,24 @@ function create() {
     () => session.current.value?.bundles ?? []
   )
 
-  /** 返回该 uid 所在的所有小组，按"加入时间"升序（用于 chip 多色点排序） */
-  function getBundlesForUid(uidVal: string): Bundle[] {
+  /** 当前所有可用的人：名字 → uid（当前名单优先于名册） */
+  function liveIndex(): Map<string, string> {
+    const map = new Map<string, string>()
+    for (const e of permanent.entries.value) map.set(e.name, e.uid)
+    for (const e of roster.entries.value) map.set(e.name, e.uid)
+    return map
+  }
+
+  /** 该名字所在的所有小组，按"加入时间"升序（用于 chip 多色点排序） */
+  function getBundlesForName(name: string): Bundle[] {
     return all.value
-      .filter(g => g.members.some(m => m.uid === uidVal))
+      .filter(g => g.members.some(m => m.name === name))
       .map(g => {
-        const m = g.members.find(x => x.uid === uidVal)!
+        const m = g.members.find(x => x.name === name)!
         return { g, addedAt: m.addedAt }
       })
       .sort((a, b) => a.addedAt - b.addedAt)
       .map(x => x.g)
-  }
-
-  function validUidSet(): Set<string> {
-    const s = new Set<string>()
-    for (const e of roster.entries.value) s.add(e.uid)
-    for (const e of permanent.entries.value) s.add(e.uid)
-    return s
   }
 
   function commit(next: Bundle[]) {
@@ -54,18 +62,47 @@ function create() {
     session.current.value = { ...cur }
   }
 
-  function createGroup(opts: { name: string; color: string; memberUids: string[] }): Bundle | null {
+  /** 旧数据只有 uid 没有名字：按当前名单 / 名册回填一次 */
+  function repairNames() {
+    const byUid = new Map<string, string>()
+    for (const [n, u] of liveIndex()) byUid.set(u, n)
+    let changed = false
+    const next = all.value.map(g => {
+      let gChanged = false
+      const members = g.members.map<BundleMember>(m => {
+        if (m.name) return m
+        const name = byUid.get(m.uid)
+        if (!name) return m
+        gChanged = true
+        return { ...m, name }
+      })
+      if (!gChanged) return g
+      changed = true
+      return { ...g, members }
+    })
+    if (changed) commit(next)
+  }
+
+  function createGroup(opts: { name: string; color: string; members: MemberRef[] }): Bundle | null {
     const cur = session.current.value
     if (!cur) return null
-    const valid = validUidSet()
-    const unique = Array.from(new Set(opts.memberUids.filter(u => valid.has(u))))
-    if (unique.length < 2) return null
+    const live = liveIndex()
+    const seen = new Set<string>()
+    const members: BundleMember[] = []
+    for (const m of opts.members) {
+      const name = m.name.trim()
+      if (!name || seen.has(name)) continue
+      if (!live.has(name)) continue
+      seen.add(name)
+      members.push({ uid: live.get(name)!, name, addedAt: Date.now() })
+    }
+    if (members.length < 2) return null
     const now = Date.now()
     const g: Bundle = {
       id: uid(UID_PREFIX.BINDING),
       name: opts.name.trim() || '未命名小组',
       color: opts.color,
-      members: unique.map(m => ({ uid: m, addedAt: now })),
+      members,
       createdAt: now,
     }
     commit([...all.value, g])
@@ -80,85 +117,79 @@ function create() {
     commit(all.value.map(g => g.id === id ? { ...g, color } : g))
   }
 
-  function addMembers(id: string, uids: string[]) {
+  function addMembers(id: string, refs: MemberRef[]) {
     const target = all.value.find(g => g.id === id)
     if (!target) return
-    const valid = validUidSet()
-    const existing = new Set(target.members.map(m => m.uid))
-    const filtered = uids.filter(u => valid.has(u) && !existing.has(u))
-    if (filtered.length === 0) return
+    const live = liveIndex()
+    const existing = new Set(target.members.map(m => m.name))
     const now = Date.now()
+    const added: BundleMember[] = []
+    for (const r of refs) {
+      const name = r.name.trim()
+      if (!name || existing.has(name) || !live.has(name)) continue
+      existing.add(name)
+      added.push({ uid: live.get(name)!, name, addedAt: now })
+    }
+    if (added.length === 0) return
     commit(all.value.map(g => {
       if (g.id !== id) return g
-      return { ...g, members: [...g.members, ...filtered.map(u => ({ uid: u, addedAt: now }))] }
+      return { ...g, members: [...g.members, ...added] }
     }))
   }
 
-  function removeMembers(id: string, uids: string[]) {
-    const set = new Set(uids)
+  /** 按名字移除成员（uid 会随名单变化，名字才可靠） */
+  function removeMembers(id: string, names: string[]) {
+    const set = new Set(names)
     const next = all.value
-      .map(g => g.id === id ? { ...g, members: g.members.filter(m => !set.has(m.uid)) } : g)
+      .map(g => g.id === id ? { ...g, members: g.members.filter(m => !set.has(m.name)) } : g)
       .filter(g => g.members.length >= 2)
     commit(next)
+  }
+
+  /** 人名被重命名时，同步更新所有小组里的成员引用 */
+  function renameMember(oldName: string, newName: string) {
+    const from = oldName.trim()
+    const to = newName.trim()
+    if (!from || !to || from === to) return
+    let changed = false
+    const next = all.value
+      .map(g => {
+        if (!g.members.some(m => m.name === from)) return g
+        changed = true
+        const seen = new Set<string>()
+        const members = g.members
+          .map(m => (m.name === from ? { ...m, name: to } : m))
+          .filter(m => {
+            if (!m.name || seen.has(m.name)) return false
+            seen.add(m.name)
+            return true
+          })
+        return { ...g, members }
+      })
+      .filter(g => g.members.length >= 2)
+    if (changed) commit(next)
   }
 
   function dissolve(id: string) {
     commit(all.value.filter(g => g.id !== id))
   }
 
-  function purgeUids(uids: string[]) {
-    const set = new Set(uids)
-    if (set.size === 0) return
-    const before = all.value
-    const next = before
-      .map(g => ({ ...g, members: g.members.filter(m => !set.has(m.uid)) }))
-      .filter(g => g.members.length >= 2)
-    const changed = next.length !== before.length ||
-      next.some((g, i) => g.members.length !== before[i].members.length)
-    if (changed) commit(next)
-  }
-
-  let prevRosterUids = new Set(roster.entries.value.map(e => e.uid))
-  let prevPermUids = new Set(permanent.entries.value.map(e => e.uid))
-
-  // 初始化时执行一次：清理引用了不存在 uid 的成员
-  {
-    const validUids = new Set<string>()
-    for (const e of roster.entries.value) validUids.add(e.uid)
-    for (const e of permanent.entries.value) validUids.add(e.uid)
-    const toRemove: string[] = []
-    for (const g of all.value) {
-      for (const m of g.members) {
-        if (!validUids.has(m.uid)) toRemove.push(m.uid)
-      }
-    }
-    if (toRemove.length > 0) purgeUids(toRemove)
-  }
-
+  // 旧数据补名字：数据异步载入后跑一次，之后名单变化也补
   watch(
     [roster.entries, permanent.entries],
-    () => {
-      const newRosterUids = new Set(roster.entries.value.map(e => e.uid))
-      const newPermUids = new Set(permanent.entries.value.map(e => e.uid))
-      const removed: string[] = []
-      for (const u of prevRosterUids) if (!newRosterUids.has(u)) removed.push(u)
-      for (const u of prevPermUids) if (!newPermUids.has(u)) removed.push(u)
-      prevRosterUids = newRosterUids
-      prevPermUids = newPermUids
-      if (removed.length > 0) purgeUids(removed)
-    },
+    () => { repairNames() },
     { deep: true, flush: 'post' }
   )
 
   return {
     all,
-    getBundlesForUid,
+    getBundlesForName,
     create: createGroup,
     rename,
     recolor,
     addMembers,
     removeMembers,
+    renameMember,
     dissolve,
-    purgeUids,
   }
 }

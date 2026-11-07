@@ -40,7 +40,7 @@ export type BindingGroupColor = (typeof BINDING_GROUP_COLORS)[number]
 
 /**
  * 名册默认取色。
- * 与绑定小组的默认色（BINDING_GROUP_COLORS[0] 橙）错开，避免一个颜色同时代表两种归属。
+ * 与小组的默认色（BINDING_GROUP_COLORS[0] 橙）错开，避免一个颜色同时代表两种归属。
  */
 export const BOOK_COLORS = [
   '#2A9D8F',

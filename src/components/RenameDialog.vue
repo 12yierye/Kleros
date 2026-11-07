@@ -3,10 +3,12 @@ import { ref, computed, watch } from 'vue'
 import { useUi } from '@/composables/useUi'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
+import { useBundles } from '@/composables/useBundles'
 
 const ui = useUi()
 const roster = useRoster()
 const permanent = usePermanentRoster()
+const bundles = useBundles()
 
 const newName = ref('')
 const error = ref<string | null>(null)
@@ -47,11 +49,14 @@ function confirm() {
     close()
     return
   }
+  const oldName = currentName.value
   if (ui.state.renameTargetFrom === 'roster') {
     roster.rename(uid, v)
   } else if (ui.state.renameTargetFrom === 'permanent') {
     permanent.rename(uid, v)
   }
+  // 小组按名字引用成员，改名必须同步，否则这个人会从小群里消失
+  if (oldName) bundles.renameMember(oldName, v)
   close()
 }
 </script>

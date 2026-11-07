@@ -34,9 +34,21 @@ export interface UserPreferences {
   startButtonText: string
   /** 暂停/查看按钮文本 */
   pauseButtonText: string
+  /** 没有可抽的人时，结果区随机展示的文案（空数组 = 用默认） */
+  idleTexts: string[]
 }
 
-export const PREFS_VERSION = 3
+/** 空结果文案默认值：每次启动随机显示一条 */
+export const DEFAULT_IDLE_TEXTS = [
+  '名单还是空的',
+  '还没有人可抽',
+  '先把名字放进来吧',
+  '空空如也',
+  '这里静悄悄的',
+  '等一个人来',
+]
+
+export const PREFS_VERSION = 4
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
   prefsVersion: PREFS_VERSION,
@@ -52,4 +64,5 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   pickSeparator: '  ',
   startButtonText: '开始抽取',
   pauseButtonText: '看看是谁',
+  idleTexts: [...DEFAULT_IDLE_TEXTS],
 }

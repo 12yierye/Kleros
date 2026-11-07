@@ -12,7 +12,7 @@ function close(ok: boolean) {
 
 <template>
 <Transition name="modal">
-  <div v-if="ui.state.confirm" class="modal-backdrop" @click.self="close(false)">
+  <div v-if="ui.state.confirm" class="modal-backdrop modal-backdrop--confirm" @click.self="close(false)">
     <div class="modal" style="max-width: 380px;">
       <div class="modal__header">
         <span>{{ ui.state.confirm.title }}</span>

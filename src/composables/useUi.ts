@@ -13,6 +13,7 @@ export type ModalKind =
   | 'dbInspect'
   | 'bundles'
   | 'library'
+  | 'idleTexts'
   | 'confirm'
   | null
 
@@ -59,6 +60,12 @@ export function provideUi(): UiApi {
     confirm: null,
   })
 
+  /**
+   * 模态框栈：设置里打开「全局重命名」等子框，关掉子框要回到设置，
+   * 单值 modal 会让设置直接消失。stack 里只存非 null 值。
+   */
+  const stack: Exclude<ModalKind, null>[] = []
+
   const api: UiApi = {
     state,
     toggleSide() {
@@ -69,18 +76,21 @@ export function provideUi(): UiApi {
       state.sideCollapsed = false
     },
     openBundles() {
-      state.modal = 'bundles'
+      api.openModal('bundles')
     },
     openModal(kind) {
+      if (stack[stack.length - 1] === kind) return
+      stack.push(kind)
       state.modal = kind
     },
     closeModal() {
-      state.modal = null
+      stack.pop()
+      state.modal = stack[stack.length - 1] ?? null
     },
     openRename(uidVal, from) {
       state.renameTargetUid = uidVal
       state.renameTargetFrom = from
-      state.modal = 'rename'
+      api.openModal('rename')
     },
     askConfirm(opts) {
       return new Promise<boolean>((resolve) => {

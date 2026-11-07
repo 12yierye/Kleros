@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
+import { matchName } from '@/utils/pinyin'
 
 const props = withDefaults(defineProps<{
   exclude?: string[]
@@ -37,8 +38,7 @@ const candidates = computed(() => {
     out.push({ name: e.name, from: '当前名单' })
   }
   const exclude = new Set(props.exclude)
-  const kw = q.value.trim().toLowerCase()
-  return out.filter(c => !exclude.has(c.name) && (!kw || c.name.toLowerCase().includes(kw)))
+  return out.filter(c => !exclude.has(c.name) && matchName(c.name, q.value))
 })
 
 const available = computed(() => candidates.value.length)
@@ -48,7 +48,7 @@ function place() {
   if (!el) return
   const r = el.getBoundingClientRect()
   const width = Math.max(r.width, 252)
-  const height = 262
+  const height = panelRef.value?.offsetHeight || 262
   let left = r.left
   if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - width - 8)
   let top = r.bottom + 6
@@ -63,16 +63,34 @@ async function toggle() {
   q.value = ''
   await nextTick()
   inputRef.value?.focus()
-  window.addEventListener('scroll', close, true)
-  window.addEventListener('resize', close)
+  window.addEventListener('scroll', onScroll, true)
+  window.addEventListener('resize', onResize)
   document.addEventListener('mousedown', onOutside, true)
 }
 
 function close() {
   open.value = false
-  window.removeEventListener('scroll', close, true)
-  window.removeEventListener('resize', close)
+  window.removeEventListener('scroll', onScroll, true)
+  window.removeEventListener('resize', onResize)
   document.removeEventListener('mousedown', onOutside, true)
+}
+
+/**
+ * 滚动时面板跟随触发器，而不是直接关闭。
+ * 候选列表自身滚动一定不能关，否则搜完想看下面的结果，面板就没了。
+ */
+function onScroll(e: Event) {
+  const t = e.target
+  if (t instanceof Node && panelRef.value?.contains(t)) return
+  const el = triggerRef.value
+  if (!el || !el.isConnected) { close(); return }
+  const r = el.getBoundingClientRect()
+  if (r.bottom <= 0 || r.top >= window.innerHeight) { close(); return }
+  place()
+}
+
+function onResize() {
+  close()
 }
 
 function onOutside(e: MouseEvent) {

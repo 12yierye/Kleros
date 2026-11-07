@@ -11,18 +11,18 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 import { fileURLToPath, URL } from 'node:url';
-import { renameSync } from 'node:fs';
+import { renameSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-var VERSION = '1.2';
-// const OUTPUT_HTML_NAME = `Kleros ${VERSION}.html`
+/** 版本号只认 package.json，避免构建产物文件名与版本不同步 */
+var VERSION = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
 function renameHtml() {
     return {
         name: 'rename-html',
         apply: 'build',
-        writeBundle: function (options) {
-            var outDir = options.dir || 'dist';
+        // closeBundle 在所有插件写盘之后执行，避免和 singlefile 的输出顺序打架
+        closeBundle: function () {
             try {
-                renameSync(resolve(outDir, "Kleros ".concat(VERSION, ".html")), resolve(outDir, "Kleros ".concat(VERSION, ".html")));
+                renameSync(resolve('dist', 'index.html'), resolve('dist', "Kleros ".concat(VERSION, ".html")));
             }
             catch (_a) { }
         },

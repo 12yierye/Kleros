@@ -30,6 +30,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DBInspectDialog from '@/components/DBInspectDialog.vue'
 import BundlesDialog from '@/components/BundlesDialog.vue'
 import LibraryDialog from '@/components/LibraryDialog.vue'
+import IdleTextsDialog from '@/components/IdleTextsDialog.vue'
 
 if (typeof window !== 'undefined') {
   const p = new URL(window.location.href).searchParams
@@ -59,10 +60,11 @@ function startNewRound() {
 }
 provide('startNewRound', startNewRound)
 
-/* 新一轮开始时，清掉名单上的「已抽」灰态 */
+/* 新一轮开始时，清掉名单上的「已抽」灰态，并清空结果区（不能留下上一轮的名字） */
 onNewRound(() => {
   rosterRefs.resetPickedFlags()
   session.initLastSeen()
+  picker.clearDisplay()
 })
 
 /* 侧栏折叠：UI 状态 ↔ 偏好，双向同步（否则刷新即还原） */
@@ -260,6 +262,7 @@ onBeforeUnmount(() => {
     <AppFooter />
 
     <SettingsDialog />
+    <IdleTextsDialog />
     <RenameDialog />
     <GlobalRenameDialog />
     <ConfirmDialog />

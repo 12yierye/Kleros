@@ -31,7 +31,6 @@ function say(text: string) {
 /* ---------- 当前名单 ---------- */
 const batchMode = ref(false)
 const batchSelected = ref<Set<string>>(new Set())
-const targetGroupId = ref('')
 
 function toggleBatch() {
   batchMode.value = !batchMode.value
@@ -65,44 +64,11 @@ function onClearCurrent() {
   })
 }
 
-const targetOptions = computed(() => lib.groups.value)
-
-function ensureTarget() {
-  if (targetOptions.value.length === 0) {
-    const id = lib.addGroup('我的名册')
-    targetGroupId.value = id
-    return id
-  }
-  if (!targetOptions.value.some(g => g.id === targetGroupId.value)) {
-    targetGroupId.value = targetOptions.value[0].id
-  }
-  return targetGroupId.value
-}
-
-function onStoreSelected() {
-  const ids = [...batchSelected.value]
-  if (ids.length === 0) return
-  const groupId = ensureTarget()
-  const group = lib.groups.value.find(g => g.id === groupId)
-  void ui.askConfirm({
-    title: `存入「${group?.name ?? '名册'}」？`,
-    message: `${ids.length} 人将从当前名单移出，存入名册，之后可随时整册取回。`,
-    confirmText: '存入',
-  }).then(ok => {
-    if (!ok) return
-    const snap = roster.promoteEntries(ids)
-    for (const s of snap) lib.importOne(s, groupId)
-    batchSelected.value = new Set()
-    batchMode.value = false
-    say(`已存入 ${snap.length} 人`)
-  })
-}
-
 function onRenameCurrent(e: RosterEntry) {
   ui.openRename(e.uid, 'roster')
 }
 
-/* ---------- 归属标记：绑定小组 + 名册 ---------- */
+/* ---------- 归属标记：小组 + 名册 ---------- */
 const EMPTY_MARKS: RosterMark[] = []
 
 const marksMap = computed(() => {
@@ -110,7 +76,7 @@ const marksMap = computed(() => {
   const books = lib.groups.value
   for (const e of currentEntries.value) {
     const marks: RosterMark[] = []
-    for (const b of bundles.getBundlesForUid(e.uid)) {
+    for (const b of bundles.getBundlesForName(e.name)) {
       marks.push({ kind: 'bundle', name: b.name, color: b.color })
     }
     for (const g of books) {
@@ -158,7 +124,7 @@ function accentOf(uid: string): string {
           <button class="btn btn--sm btn--primary" @click="addOpen = !addOpen">{{ addOpen ? '收起' : '＋ 添加' }}</button>
           <span class="tip">
             <button class="btn btn--sm" @click="ui.openBundles()">
-              绑定{{ bundles.all.value.length ? ` ${bundles.all.value.length}` : '' }}
+              小组{{ bundles.all.value.length ? ` ${bundles.all.value.length}` : '' }}
             </button>
             <span class="tip__bubble">同一小组里的人会一起被抽中</span>
           </span>
@@ -172,10 +138,6 @@ function accentOf(uid: string): string {
       <div v-if="batchMode" class="batch-bar">
         <span class="text-muted" style="font-size: 12px;">已选 {{ batchSelected.size }} 人</span>
         <span class="flex-1"></span>
-        <select v-model="targetGroupId" class="input select" style="width: 130px;">
-          <option v-for="g in targetOptions" :key="g.id" :value="g.id">{{ g.name }}</option>
-        </select>
-        <button class="btn btn--sm" :disabled="batchSelected.size === 0" @click="onStoreSelected">存入名册</button>
         <button class="btn btn--sm btn--danger" :disabled="batchSelected.size === 0" @click="onDeleteSelected">删除</button>
       </div>
 

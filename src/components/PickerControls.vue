@@ -53,7 +53,7 @@ function onStart() {
 function onNewRound() {
   const run = () => {
     startNewRound()
-    picker.lastResults.value = []
+    picker.clearDisplay()
     picker.lastError.value = null
   }
   if (picks.value.length === 0) { run(); return }

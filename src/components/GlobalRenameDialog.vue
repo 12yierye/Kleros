@@ -4,11 +4,13 @@ import { useUi } from '@/composables/useUi'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { useBlackWhiteList } from '@/composables/useBlackWhiteList'
+import { useBundles } from '@/composables/useBundles'
 
 const ui = useUi()
 const roster = useRoster()
 const permanent = usePermanentRoster()
 const bw = useBlackWhiteList()
+const bundles = useBundles()
 
 const oldName = ref('')
 const newName = ref('')
@@ -72,6 +74,9 @@ function confirm() {
     if (m.from === 'roster') roster.rename(m.uid, newN)
     else permanent.rename(m.uid, newN)
   }
+
+  // 1.5 小组按名字引用成员，同步改名，避免成员从小群里掉出去
+  bundles.renameMember(oldN, newN)
 
   // 2. 历史会话（按 UID；UID 不变所以实际上不需要改 picks.uids，但需要更新匹配项的展示名）
   // 由于历史中只存了 UID，显示时再查表，因此这里无需改 picks 内容。

@@ -28,7 +28,7 @@ export interface RosterEntry extends Name {
   groupId: string
 }
 
-/** 名单 chip 上的归属标记（绑定小组 / 名册） */
+/** 名单 chip 上的归属标记（小组 / 名册） */
 export interface RosterMark {
   kind: 'bundle' | 'book'
   name: string

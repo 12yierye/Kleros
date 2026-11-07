@@ -18,7 +18,7 @@ function addFromBook(g: PermanentGroup) {
   )
 }
 
-type Tab = 'paste' | 'manual' | 'file'
+type Tab = 'paste' | 'manual' | 'file' | 'book'
 const tab = ref<Tab>('paste')
 
 const pasteText = ref('')
@@ -83,32 +83,27 @@ async function onFile(e: Event) {
 
 <template>
   <div class="add-block">
-    <div v-if="bookList.length > 0" class="add-from-book">
-      <span class="add-from-book__label">从名册加入</span>
-      <button
-        v-for="g in bookList"
-        :key="g.id"
-        class="btn btn--xs"
-        @click="addFromBook(g)"
-      >{{ g.name }} · {{ g.members.length }}</button>
-    </div>
-
     <div class="tabs">
       <button
         class="tab"
         :class="{ 'tab--active': tab === 'paste' }"
         @click="tab = 'paste'"
-      >粘贴</button>
+      >多个</button>
       <button
         class="tab"
         :class="{ 'tab--active': tab === 'manual' }"
         @click="tab = 'manual'"
-      >手动</button>
+      >单个</button>
       <button
         class="tab"
         :class="{ 'tab--active': tab === 'file' }"
         @click="tab = 'file'"
       >文件</button>
+      <button
+        class="tab"
+        :class="{ 'tab--active': tab === 'book' }"
+        @click="tab = 'book'"
+      >从名册</button>
     </div>
 
     <div v-if="tab === 'paste'">
@@ -138,7 +133,7 @@ async function onFile(e: Event) {
       <div class="text-subtle" style="font-size: 12px; margin-top: 6px;">逐个加入，适合临时补一个人</div>
     </div>
 
-    <div v-else>
+    <div v-else-if="tab === 'file'">
       <label
         style="display: block; padding: 24px; border: 2px dashed var(--color-border-strong); border-radius: 8px; text-align: center; cursor: pointer;"
       >
@@ -146,6 +141,20 @@ async function onFile(e: Event) {
         <div class="text-muted">点击选择 .txt / .csv 文件</div>
         <div class="text-subtle" style="font-size: 12px; margin-top: 4px;">CSV 仅取每行第一列</div>
       </label>
+    </div>
+
+    <div v-else>
+      <div v-if="bookList.length === 0" class="empty" style="padding: 16px 0;">
+        名册里还没有人
+      </div>
+      <div v-else class="book-pick">
+        <div v-for="g in bookList" :key="g.id" class="book-pick__row">
+          <span class="book-pick__name">{{ g.name }}</span>
+          <span class="book-pick__count">{{ g.members.length }} 人</span>
+          <span class="flex-1"></span>
+          <button class="btn btn--sm btn--primary" @click="addFromBook(g)">加入当前名单</button>
+        </div>
+      </div>
     </div>
 
     <Transition name="toast">

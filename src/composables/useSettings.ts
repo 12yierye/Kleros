@@ -5,7 +5,7 @@
 import { type Ref } from 'vue'
 import { useDB } from './useDB'
 import { STORAGE_KEYS } from '@/constants'
-import { DEFAULT_PREFERENCES, PREFS_VERSION, type UserPreferences } from '@/types/settings'
+import { DEFAULT_PREFERENCES, DEFAULT_IDLE_TEXTS, PREFS_VERSION, type UserPreferences } from '@/types/settings'
 
 let _prefs: Ref<UserPreferences> | undefined
 
@@ -41,6 +41,11 @@ export function normalizePrefs(): void {
   // 旧字段不再使用，落库前剔除
   delete (merged as UserPreferences & { animationSpeed?: string }).animationSpeed
 
+  // 空结果文案：旧数据没有这个字段，或用户全删了，都回落到默认
+  if (!Array.isArray(merged.idleTexts) || merged.idleTexts.length === 0) {
+    merged.idleTexts = [...DEFAULT_IDLE_TEXTS]
+  }
+
   merged.prefsVersion = PREFS_VERSION
   prefs.value = merged
 }
@@ -53,7 +58,7 @@ export function useSettings() {
   }
 
   function reset() {
-    prefs.value = { ...DEFAULT_PREFERENCES }
+    prefs.value = { ...DEFAULT_PREFERENCES, idleTexts: [...DEFAULT_IDLE_TEXTS] }
   }
 
   return { prefs, update, reset }

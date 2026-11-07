@@ -68,7 +68,7 @@ const emit = defineEmits<{
     <span v-if="props.marks.length" class="chip__tip" role="tooltip">
       <span v-for="m in props.marks" :key="`${m.kind}-${m.name}`" class="chip__tip-row">
         <span class="chip__tip-dot" :style="{ background: m.color }"></span>
-        <span>{{ m.kind === 'bundle' ? '绑定小组' : '名册' }} · {{ m.name }}</span>
+        <span>{{ m.kind === 'bundle' ? '小组' : '名册' }} · {{ m.name }}</span>
       </span>
     </span>
   </span>

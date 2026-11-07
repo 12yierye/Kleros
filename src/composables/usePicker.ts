@@ -8,8 +8,8 @@ import { usePermanentRoster } from './usePermanentRoster'
 import { useBlackWhiteList } from './useBlackWhiteList'
 import { useSession } from './useSession'
 import { useSettings } from './useSettings'
-import { buildCandidatePool, pickFrom, type CandidateItem } from '@/utils/pick'
-import type { PickMode } from '@/types/session'
+import { buildCandidatePool, buildUnits, pickFrom, toUnitRecords, type CandidateItem, type PickUnit } from '@/utils/pick'
+import type { PickMode, PickUnitRecord } from '@/types/session'
 
 let _instance: ReturnType<typeof createPicker> | undefined
 
@@ -23,14 +23,17 @@ function createPicker() {
   const isPicking = ref(false)
   const isAnimating = ref(false)
   const blockAttempt = ref(false)
-  const lastResults = ref<CandidateItem[]>([])
+  const lastResults = ref<PickUnit[]>([])
   const lastError = ref<string | null>(null)
-  /** 结果区展示的 uid：只在真正抽过之后才有值，不随轮次重置被清空 */
-  const displayUids = ref<string[]>([])
+  /** 结果区展示的签：只在真正抽过之后才有值，不随轮次重置被清空 */
+  const displayUnits = ref<PickUnitRecord[]>([])
+
+  /** 结果区涉及的所有 uid（按人展开） */
+  const displayUids = computed(() => displayUnits.value.flatMap(u => u.uids))
   /** 名字实时解析，名单改名 / 异步载入后都会跟着更新 */
   const displayNames = computed(() => displayUids.value.map(nameOf))
 
-  /** 抽取人数（按人口径=人数，按小组口径=签数） */
+  /** 抽取人数（按人口径=人数，按小组口径=名额内的签数） */
   const count = ref(1)
 
   const pool = computed<CandidateItem[]>(() => {
@@ -42,6 +45,13 @@ function createPicker() {
       session: current.value,
       prefs: prefs.value,
     })
+  })
+
+  /** 候选签：按小组抽时小组算一个签（动画与结果都用它的 label） */
+  const units = computed<PickUnit[]>(() => {
+    const cur = current.value
+    if (!cur) return []
+    return buildUnits(pool.value, cur.bundles ?? [])
   })
 
   const poolSize = computed(() => pool.value.length)
@@ -57,28 +67,33 @@ function createPicker() {
     return r?.name ?? uidVal.slice(-6)
   }
 
-  function applyResults(results: CandidateItem[], mode: PickMode) {
-    appendPick(results.map(r => r.uid), mode)
-    const set = new Set(results.map(r => r.uid))
+  function applyResults(results: PickUnit[], mode: PickMode) {
+    const records = toUnitRecords(results)
+    appendPick(records, mode)
+    const set = new Set(records.flatMap(r => r.uids))
     roster.value = roster.value.map(r =>
       set.has(r.uid) ? { ...r, pickedThisSession: true } : r
     )
     lastResults.value = results
-    displayUids.value = results.map(r => r.uid)
+    displayUnits.value = records
   }
 
-  /** 撤销后：结果区回退到上一条记录的名字，没有记录就清空 */
+  /** 撤销后：结果区回退到上一条记录，没有记录就清空 */
   function syncDisplayFromPicks() {
     const picks = current.value?.picks ?? []
     const last = picks[picks.length - 1]
-    displayUids.value = last ? [...last.uids] : []
+    if (!last) { displayUnits.value = []; return }
+    displayUnits.value = last.units && last.units.length > 0
+      ? last.units
+      : last.uids.map(uid => ({ label: nameOf(uid), uids: [uid] }))
   }
 
   function clearDisplay() {
-    displayUids.value = []
+    displayUnits.value = []
+    lastResults.value = []
   }
 
-  function draw(n: number): CandidateItem[] {
+  function draw(n: number): PickUnit[] {
     const available = pool.value
     if (available.length === 0) return []
     const want = Math.min(Math.max(1, n), available.length)
@@ -90,7 +105,7 @@ function createPicker() {
     )
   }
 
-  async function trigger(opts: { mode: PickMode; count: number }): Promise<CandidateItem[] | null> {
+  async function trigger(opts: { mode: PickMode; count: number }): Promise<PickUnit[] | null> {
     lastError.value = null
     if (isPicking.value) return null
     isPicking.value = true
@@ -121,7 +136,7 @@ function createPicker() {
   }
 
   /** 滚动停下：按当前人数与口径正式抽取并入账 */
-  function stopAnimate(n: number): CandidateItem[] {
+  function stopAnimate(n: number): PickUnit[] {
     const results = draw(n)
     isAnimating.value = false
     isPicking.value = false
@@ -129,7 +144,8 @@ function createPicker() {
       lastError.value = '候选池为空：请先添加名单或检查黑白名单设置'
       return []
     }
-    applyResults(results, results.length > 1 ? 'multi' : 'single')
+    const peopleCount = results.reduce((sum, u) => sum + u.items.length, 0)
+    applyResults(results, peopleCount > 1 ? 'multi' : 'single')
     return results
   }
 
@@ -137,7 +153,7 @@ function createPicker() {
   watch(
     () => current.value?.picks.length ?? 0,
     (len) => {
-      if (len > 0 && displayUids.value.length === 0) syncDisplayFromPicks()
+      if (len > 0 && displayUnits.value.length === 0) syncDisplayFromPicks()
     },
     { immediate: true }
   )
@@ -158,7 +174,8 @@ function createPicker() {
 
   return {
     isPicking, isAnimating, blockAttempt,
-    lastResults, lastError, displayNames, pool, poolSize,
+    lastResults, lastError, displayUnits, displayUids, displayNames,
+    pool, poolSize, units,
     count, effectiveCount, dec, inc,
     trigger, startAnimate, stopAnimate, undoTo, clearDisplay,
   }

@@ -3,11 +3,16 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { useUi } from '@/composables/useUi'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
+import { useModalHeight } from '@/composables/useModalHeight'
+import { matchName } from '@/utils/pinyin'
 import type { PermanentGroup, PermanentEntry } from '@/types/roster'
 
 const ui = useUi()
 const lib = usePermanentRoster()
 const roster = useRoster()
+
+const modalRef = ref<HTMLElement | null>(null)
+const { animateHeight } = useModalHeight(modalRef)
 
 const isOpen = ref(false)
 const editorOpen = ref(false)
@@ -42,9 +47,9 @@ const sources = computed(() => {
 })
 
 const filteredSources = computed(() => {
-  const kw = keyword.value.trim().toLowerCase()
+  const kw = keyword.value.trim()
   return sources.value
-    .map(s => ({ label: s.label, items: s.items.filter(n => !kw || n.toLowerCase().includes(kw)) }))
+    .map(s => ({ label: s.label, items: s.items.filter(n => matchName(n, kw)) }))
     .filter(s => s.items.length > 0)
 })
 
@@ -68,23 +73,30 @@ function close() {
 }
 
 function startNew() {
-  resetEditor()
-  editorOpen.value = true
+  void animateHeight(() => {
+    resetEditor()
+    editorOpen.value = true
+  })
   focusEditor()
 }
 
 function startEdit(g: PermanentGroup) {
-  editingId.value = g.id
-  editorOpen.value = true
-  name.value = g.name
-  keyword.value = ''
-  picked.value = new Set(g.members.map(m => m.name))
+  void animateHeight(() => {
+    editingId.value = g.id
+    editorOpen.value = true
+    name.value = g.name
+    keyword.value = ''
+    picked.value = new Set(g.members.map(m => m.name))
+  })
   focusEditor()
+}
+
+function onCancel() {
+  void animateHeight(resetEditor)
 }
 
 function focusEditor() {
   void nextTick(() => {
-    document.getElementById('lib-editor')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     document.getElementById('lib-group-name')?.focus()
   })
 }
@@ -124,7 +136,7 @@ function save() {
     lib.setMembers(id, names)
     say(`已创建「${name.value.trim()}」`)
   }
-  resetEditor()
+  void animateHeight(resetEditor)
 }
 
 function onDeleteGroup(g: PermanentGroup) {
@@ -150,86 +162,70 @@ function onDeleteGroup(g: PermanentGroup) {
 function onRemoveMember(g: PermanentGroup, m: PermanentEntry) {
   lib.removeMember(g.id, m.uid)
 }
-
-function addGroupToCurrent(g: PermanentGroup) {
-  if (g.members.length === 0) { say('这份名册还没有人'); return }
-  const r = roster.addMany(g.members.map(m => m.name))
-  say(
-    r.added > 0
-      ? `已从「${g.name}」加入 ${r.added} 人${r.duplicates > 0 ? `，跳过 ${r.duplicates} 个重复` : ''}`
-      : `「${g.name}」里的人都已经在当前名单`
-  )
-}
-
-function addOneToCurrent(n: string) {
-  const r = roster.addMany([n])
-  say(r.added > 0 ? `已加入「${n}」` : `「${n}」已在当前名单`)
-}
 </script>
 
 <template>
   <Transition name="modal">
     <div v-if="isOpen" class="modal-backdrop" @click.self="close">
-      <div class="modal modal--wide">
+      <div ref="modalRef" class="modal modal--wide">
         <div class="modal__header">
-          <span>名册</span>
+          <span>{{ editorOpen ? (editingId ? '编辑名册' : '新建名册') : '名册' }}</span>
           <button class="btn btn--ghost btn--icon" @click="close" aria-label="关闭">×</button>
         </div>
 
         <div class="modal__body">
-          <p class="modal-lead">长期保存的名单。整册加入当前名单，或按人取用。</p>
+          <!-- 列表视图 -->
+          <template v-if="!editorOpen">
+            <p class="modal-lead">长期保存的名单。需要时在名单页的「从名册」里整册加入。</p>
 
-          <div v-if="notice" class="lib-notice">{{ notice }}</div>
+            <div v-if="notice" class="lib-notice">{{ notice }}</div>
 
-          <div v-if="groups.length === 0 && !editorOpen" class="empty" style="padding: 10px 0 14px;">
-            还没有名册
-          </div>
-
-          <div
-            v-for="g in groups"
-            :key="g.id"
-            class="lib-group"
-            :style="editingId === g.id ? { borderColor: 'var(--color-primary)' } : undefined"
-          >
-            <div class="lib-group__head">
-              <span class="lib-group__dot" :style="{ background: g.color }"></span>
-              <span class="lib-group__name">{{ g.name }}</span>
-              <span class="lib-group__count">{{ g.members.length }}</span>
-              <span class="flex-1"></span>
-              <button class="btn btn--sm" :disabled="g.members.length === 0" @click="addGroupToCurrent(g)">整册加入</button>
-              <button class="btn btn--sm" @click="startEdit(g)">编辑</button>
-              <button class="btn btn--sm btn--danger" @click="onDeleteGroup(g)">删除</button>
+            <div v-if="groups.length === 0" class="empty" style="padding: 10px 0 14px;">
+              还没有名册
             </div>
 
-            <div class="chip-list">
-              <span
-                v-for="m in g.members"
-                :key="m.uid"
-                class="chip chip--lib"
-                :title="m.name"
-              >
-                <span class="chip__name">{{ m.name }}</span>
-                <button class="chip__add" @click="addOneToCurrent(m.name)" title="加入当前名单" aria-label="加入当前名单">＋</button>
-                <button class="chip__close" @click="onRemoveMember(g, m)" title="从名册移除" aria-label="从名册移除">×</button>
-              </span>
-              <span v-if="g.members.length === 0" class="text-subtle" style="font-size: 12px;">空名册 · 点「编辑」选人</span>
-            </div>
-          </div>
+            <div v-for="g in groups" :key="g.id" class="lib-group">
+              <div class="lib-group__head">
+                <span class="lib-group__dot" :style="{ background: g.color }"></span>
+                <span class="lib-group__name">{{ g.name }}</span>
+                <span class="lib-group__count">{{ g.members.length }}</span>
+                <span class="flex-1"></span>
+                <button class="btn btn--sm" @click="startEdit(g)">编辑</button>
+                <button class="btn btn--sm btn--danger" @click="onDeleteGroup(g)">删除</button>
+              </div>
 
-          <div v-if="!editorOpen" style="margin-top: 14px;">
-            <button class="btn btn--primary" @click="startNew">＋ 新建名册</button>
-          </div>
-
-          <div v-else id="lib-editor" class="lib-editor">
-            <div class="lib-editor__head">
-              <b>{{ editingId ? '编辑名册' : '新建名册' }}</b>
-              <span class="flex-1"></span>
-              <button class="btn btn--sm" @click="resetEditor">取消</button>
+              <div class="chip-list">
+                <span
+                  v-for="m in g.members"
+                  :key="m.uid"
+                  class="chip chip--lib"
+                  :title="m.name"
+                >
+                  <span class="chip__name">{{ m.name }}</span>
+                  <button class="chip__close" @click="onRemoveMember(g, m)" title="从名册移除" aria-label="从名册移除">×</button>
+                </span>
+                <span v-if="g.members.length === 0" class="text-subtle" style="font-size: 12px;">空名册 · 点「编辑」选人</span>
+              </div>
             </div>
+
+            <div style="margin-top: 14px;">
+              <button class="btn btn--primary" @click="startNew">＋ 新建名册</button>
+            </div>
+          </template>
+
+          <!-- 编辑视图：整块切换，不在列表下面展开 -->
+          <template v-else>
+            <p class="modal-lead">勾选要长期保存的人，之后可整册或按人加入当前名单。</p>
 
             <div class="field">
               <label class="field__label">名册名</label>
-              <input id="lib-group-name" v-model="name" class="input" placeholder="例如：三班、值班名单" style="max-width: 280px;" />
+              <input
+                id="lib-group-name"
+                v-model="name"
+                class="input"
+                placeholder="例如：三班、值班名单"
+                style="max-width: 300px;"
+              />
             </div>
 
             <div class="field">
@@ -240,8 +236,8 @@ function addOneToCurrent(n: string) {
 
               <div class="member-pick">
                 <div class="member-pick__bar">
-                  <input v-model="keyword" class="input" placeholder="搜索名字…" />
-                  <button class="btn btn--sm" @click="clearAll" :disabled="picked.size === 0">清空</button>
+                  <input v-model="keyword" class="input" placeholder="搜索名字（拼音/首字母）…" />
+                  <button class="btn btn--sm" @click="clearAll" :disabled="picked.size === 0">清空已选</button>
                 </div>
 
                 <div v-if="filteredSources.length === 0" class="empty" style="padding: 14px 0;">
@@ -268,19 +264,18 @@ function addOneToCurrent(n: string) {
                   </div>
                 </div>
               </div>
-
-              <div class="lib-editor__actions">
-                <span class="flex-1"></span>
-                <button class="btn btn--sm btn--primary" :disabled="!canSave" @click="save">
-                  {{ editingId ? '保存' : '创建' }}
-                </button>
-              </div>
             </div>
-          </div>
+          </template>
         </div>
 
         <div class="modal__footer">
-          <button class="btn btn--primary" @click="close">完成</button>
+          <template v-if="editorOpen">
+            <button class="btn" @click="onCancel">取消</button>
+            <button class="btn btn--primary" :disabled="!canSave" @click="save">
+              {{ editingId ? '保存名册' : '创建名册' }}
+            </button>
+          </template>
+          <button v-else class="btn btn--primary" @click="close">关闭</button>
         </div>
       </div>
     </div>
@@ -303,25 +298,5 @@ function addOneToCurrent(n: string) {
   background: var(--color-primary-soft);
   color: var(--color-primary);
   font-size: 11px;
-}
-
-.lib-editor {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--color-border);
-}
-
-.lib-editor__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.lib-editor__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
 }
 </style>

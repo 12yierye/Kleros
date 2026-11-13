@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useUi } from '@/composables/useUi'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { useBlackWhiteList } from '@/composables/useBlackWhiteList'
 import { useBundles } from '@/composables/useBundles'
 
 const ui = useUi()
+const modalRef = ref<HTMLElement | null>(null)
+const isOpen = computed(() => ui.state.modal === 'globalRename')
+useFocusTrap(isOpen, modalRef)
 const roster = useRoster()
 const permanent = usePermanentRoster()
 const bw = useBlackWhiteList()
@@ -15,7 +19,6 @@ const bundles = useBundles()
 const oldName = ref('')
 const newName = ref('')
 const error = ref<string | null>(null)
-const updateHistory = ref(true)
 const updateBlackWhite = ref(true)
 
 interface MatchedItem {
@@ -52,7 +55,6 @@ function reset() {
   oldName.value = ''
   newName.value = ''
   matches.value = []
-  updateHistory.value = true
   updateBlackWhite.value = true
   error.value = null
 }
@@ -67,8 +69,6 @@ function confirm() {
   const selected = matches.value.filter(m => m.selected)
   if (selected.length === 0) { error.value = '请至少勾选一个条目'; return }
 
-  const selectedUids = new Set(selected.map(m => m.uid))
-
   // 1. 改名字（按 UID）
   for (const m of selected) {
     if (m.from === 'roster') roster.rename(m.uid, newN)
@@ -78,17 +78,7 @@ function confirm() {
   // 1.5 小组按名字引用成员，同步改名，避免成员从小群里掉出去
   bundles.renameMember(oldN, newN)
 
-  // 2. 历史会话（按 UID；UID 不变所以实际上不需要改 picks.uids，但需要更新匹配项的展示名）
-  // 由于历史中只存了 UID，显示时再查表，因此这里无需改 picks 内容。
-  // 但若开启了"修改历史中此人记录"，语义上指历史展示也跟着新名。
-  // 实现上：保持 UID 稳定即可，显示层会自动用新名。这里仅做提示用。
-  if (updateHistory.value) {
-    // 当前会话的 picks 数组只需保留 UID，渲染时按当前 name 解析
-    // 历史压缩条目已不再有 picks 详情，无需改
-    // 因此本块仅作为用户意图记录
-  }
-
-  // 3. 黑/白名单（按 name 字符串）
+  // 2. 黑/白名单（按 name 字符串）
   if (updateBlackWhite.value) {
     bw.list.value.black = bw.list.value.black.map(n => n === oldN ? newN : n)
     bw.list.value.white = bw.list.value.white.map(n => n === oldN ? newN : n)
@@ -101,19 +91,26 @@ function confirm() {
 <template>
 <Transition name="modal">
     <div v-if="ui.state.modal === 'globalRename'" class="modal-backdrop" @click.self="close">
-    <div class="modal modal--wide">
+    <div
+      ref="modalRef"
+      class="modal modal--wide"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="global-rename-title"
+      tabindex="-1"
+    >
       <div class="modal__header">
-        <span>全局重命名</span>
+        <h2 id="global-rename-title" class="modal__title">全局重命名</h2>
         <button class="btn btn--ghost btn--icon" @click="close" aria-label="关闭">×</button>
       </div>
       <div class="modal__body">
         <div class="field">
-          <label class="field__label">原名字</label>
-          <input v-model="oldName" class="input" placeholder="输入要改的原名" />
+          <label for="global-rename-old" class="field__label">原名字</label>
+          <input id="global-rename-old" v-model="oldName" class="input" placeholder="输入要改的原名" data-autofocus />
         </div>
         <div class="field">
-          <label class="field__label">新名字</label>
-          <input v-model="newName" class="input" placeholder="新名字" />
+          <label for="global-rename-new" class="field__label">新名字</label>
+          <input id="global-rename-new" v-model="newName" class="input" placeholder="新名字" />
         </div>
 
         <div v-if="matches.length > 0" class="field">
@@ -133,16 +130,13 @@ function confirm() {
 
         <div class="field">
           <label class="checkbox">
-            <input type="checkbox" v-model="updateHistory" />
-            同时修改历史记录中抽中此人的条目（按 UID 匹配；UID 不变，记录继续有效）
-          </label>
-          <label class="checkbox">
             <input type="checkbox" v-model="updateBlackWhite" />
             同时替换黑/白名单中的原名为新名
           </label>
+          <p class="field__hint">历史记录按 UID 展示，改名后会自动显示新名字。</p>
         </div>
 
-        <div v-if="error" class="field__hint" style="color: var(--color-danger);">{{ error }}</div>
+        <div v-if="error" class="field__hint" role="alert" style="color: var(--color-danger);">{{ error }}</div>
       </div>
       <div class="modal__footer">
         <button class="btn" @click="close">取消</button>

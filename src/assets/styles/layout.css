@@ -128,12 +128,12 @@
 }
 
 .rail-btn--active {
-  color: var(--color-primary);
+  color: var(--color-primary-text, var(--color-primary));
   background: var(--color-primary-soft);
 }
 
 .rail-btn--active:hover {
-  color: var(--color-primary);
+  color: var(--color-primary-text, var(--color-primary));
   background: var(--color-primary-soft);
 }
 
@@ -151,20 +151,32 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
+  animation: kleros-layout-in 0.18s ease;
+}
+
+@keyframes kleros-layout-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 纵向堆叠时各类卡片保持自然高度，超出让容器滚动 */
-.app-main:not(.app-main--split) > * {
+.app-main:not(.app-main--split):not(.app-main--stacked) > * {
   flex-shrink: 0;
 }
 
 .app-main--split {
   flex-direction: row;
-  gap: var(--sp-4);
+  overflow: hidden;
 }
 
 .app-main__col {
-  flex: 1 1 50%;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -174,6 +186,304 @@
 
 .app-main__col > * {
   flex-shrink: 0;
+}
+
+/* === 横向：主舞台 + 右侧名单栏 === */
+.app-main--split .app-main__col--stage {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-main--split .app-main__col--roster {
+  flex: 0 0 clamp(300px, 30%, 360px);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  opacity: 1;
+  transform: translateX(0);
+  visibility: visible;
+  transition:
+    flex-basis 0.24s ease,
+    max-height 0.24s ease,
+    opacity 0.18s ease,
+    transform 0.24s ease,
+    visibility 0s linear 0s;
+}
+
+.app-main--split .app-main__col--roster-collapsed {
+  flex-basis: 0;
+  max-height: 0;
+  opacity: 0;
+  transform: translateX(8px);
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    flex-basis 0.24s ease,
+    max-height 0.24s ease,
+    opacity 0.18s ease,
+    transform 0.24s ease,
+    visibility 0s linear 0.24s;
+}
+
+@media (min-width: 901px) {
+  /* 收起时内容保持原宽并裁切，避免 240ms 内文字反复换行 */
+  .app-main--split .app-main__col--roster .roster-page {
+    min-width: 300px;
+  }
+}
+
+/* 展开时让容器先长好，名单内容延迟渐显，避免宽度动画中不断换行 */
+.app-main--split .app-main__col--roster .chip-list,
+.app-main--split .app-main__col--roster .empty {
+  opacity: 1;
+  transition: opacity 0.16s ease 0.18s;
+}
+
+.app-main--split .app-main__col--roster-collapsed .chip-list,
+.app-main--split .app-main__col--roster-collapsed .empty {
+  opacity: 0;
+  transition: opacity 0.1s ease 0s;
+}
+
+/* 窄名单栏里的“小组”提示左对齐，避免超出栏宽被裁切 */
+.app-main__col--roster .block-head__actions .tip__bubble,
+.app-main__dock .block-head__actions .tip__bubble {
+  left: 0;
+  right: auto;
+  max-width: 240px;
+}
+
+/* 名单栏/dock：卡片占满可用高度，名单区内部滚动 */
+.app-main__col--roster .roster-page,
+.app-main__dock .roster-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 窄栏里标题独占一行，操作按钮换到下一行，避免“当前名单”被挤断 */
+.app-main__col--roster .block-head,
+.app-main__dock .block-head {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.app-main__col--roster .block-head__text,
+.app-main__dock .block-head__text {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.app-main__col--roster .block-head__actions,
+.app-main__dock .block-head__actions {
+  width: 100%;
+  margin-left: 0;
+  justify-content: flex-start;
+}
+
+.app-main__col--roster .roster-page > .main-section,
+.app-main__dock .roster-page > .main-section {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main__col--roster .chip-list,
+.app-main__dock .chip-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: flex-start;
+}
+
+.roster-rail-reopen {
+  flex: 0 0 auto;
+  width: 28px;
+  max-width: 28px;
+  margin-left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-left: 1px solid var(--color-border);
+  border-radius: var(--r-md);
+  background: var(--color-bg-chrome);
+  color: var(--color-text-muted);
+  opacity: 1;
+  overflow: hidden;
+  transition:
+    flex-basis 0.24s ease,
+    max-width 0.24s ease,
+    margin-left 0.24s ease,
+    opacity 0.18s ease,
+    border-color 0.18s ease,
+    background 0.15s,
+    color 0.15s;
+}
+
+.roster-rail-reopen--hidden {
+  flex-basis: 0;
+  max-width: 0;
+  margin-left: -16px;
+  opacity: 0;
+  pointer-events: none;
+  border-left-color: transparent;
+}
+
+.roster-rail-reopen:hover {
+  background: var(--color-chip-bg-hover);
+  color: var(--color-text);
+}
+
+/* === 纵向：舞台 + 底部名单 dock === */
+.app-main--stacked {
+  overflow: hidden;
+}
+
+.app-main__stack-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  overflow-y: auto;
+}
+
+.app-main__dock-region {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main__dock-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-rows 0.24s ease,
+    opacity 0.18s ease,
+    visibility 0s linear 0s;
+}
+
+.app-main__dock-collapse--closed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    grid-template-rows 0.24s ease,
+    opacity 0.18s ease,
+    visibility 0s linear 0.24s;
+}
+
+.app-main__dock-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-main__dock {
+  width: 100%;
+  max-height: 36vh;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+/* dock 随内容自适应，名单很多时才封顶内部滚动 */
+.app-main__dock .roster-page,
+.app-main__dock .roster-page > .main-section {
+  flex: 0 1 auto;
+}
+
+.app-main__dock .chip-list {
+  flex: 0 1 auto;
+  max-height: 24vh;
+}
+
+.stack-roster-reopen {
+  flex: 0 0 auto;
+  width: 100%;
+  height: 0;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: var(--color-bg-elev);
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  box-shadow: none;
+  transition:
+    height 0.24s ease,
+    opacity 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.15s,
+    color 0.15s;
+}
+
+.stack-roster-reopen--visible {
+  height: 34px;
+  border-color: var(--color-border);
+  box-shadow: var(--sh-sm);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.stack-roster-reopen:hover {
+  background: var(--color-chip-bg-hover);
+  color: var(--color-text);
+}
+
+/* 窄屏兜底：横向自动落回上下，名单变成底栏 */
+@media (max-width: 900px) {
+  .app-main--split {
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .app-main--split .app-main__col--stage {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .app-main--split .app-main__col--roster {
+    flex: 0 0 auto;
+    width: 100%;
+    max-height: 40vh;
+    min-height: 0;
+  }
+
+  .app-main--split .app-main__col--roster-collapsed {
+    flex-basis: 0;
+    max-height: 0;
+  }
+
+  .app-main--split .roster-rail-reopen {
+    flex: 0 0 34px;
+    width: 100%;
+    max-width: 100%;
+    margin-top: 0;
+    border-left: none;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .app-main--split .roster-rail-reopen--hidden {
+    flex-basis: 0;
+    max-height: 0;
+    max-width: 0;
+    margin-left: 0;
+    margin-top: -16px;
+    border-top-color: transparent;
+  }
 }
 
 /* === Main area sections === */

@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useUi } from '@/composables/useUi'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { useBundles } from '@/composables/useBundles'
 
 const ui = useUi()
+const modalRef = ref<HTMLElement | null>(null)
+const isOpen = computed(() => ui.state.modal === 'rename')
+useFocusTrap(isOpen, modalRef)
 const roster = useRoster()
 const permanent = usePermanentRoster()
 const bundles = useBundles()
@@ -64,21 +68,29 @@ function confirm() {
 <template>
 <Transition name="modal">
     <div v-if="ui.state.modal === 'rename'" class="modal-backdrop" @click.self="close">
-    <div class="modal">
+    <div
+      ref="modalRef"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rename-dialog-title"
+      tabindex="-1"
+    >
       <div class="modal__header">
-        <span>重命名</span>
+        <h2 id="rename-dialog-title" class="modal__title">重命名</h2>
         <button class="btn btn--ghost btn--icon" @click="close" aria-label="关闭">×</button>
       </div>
       <div class="modal__body">
         <div class="field">
-          <label class="field__label">新名字</label>
+          <label for="rename-input" class="field__label">新名字</label>
           <input
+            id="rename-input"
             v-model="newName"
             class="input"
-            autofocus
+            data-autofocus
             @keyup.enter="confirm"
           />
-          <div v-if="error" class="field__hint" style="color: var(--color-danger);">{{ error }}</div>
+          <div v-if="error" class="field__hint" role="alert" style="color: var(--color-danger);">{{ error }}</div>
           <div class="field__hint">
             本次仅改该条目（UID 不变）。黑/白名单与历史中相关条目不会自动更新。
           </div>

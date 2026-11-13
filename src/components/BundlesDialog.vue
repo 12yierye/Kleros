@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useUi } from '@/composables/useUi'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 import { useBundles } from '@/composables/useBundles'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
@@ -17,11 +18,13 @@ const modalRef = ref<HTMLElement | null>(null)
 const { animateHeight } = useModalHeight(modalRef)
 
 const isOpen = ref(false)
+useFocusTrap(isOpen, modalRef)
 const editorOpen = ref(false)
 const editingId = ref<string | null>(null)
 const name = ref('')
 const color = ref<string>(BINDING_GROUP_COLORS[0])
 const selected = ref<Set<string>>(new Set())
+const snapshot = ref<{ name: string; color: string; members: string[] } | null>(null)
 
 watch(() => ui.state.modal, (v) => {
   const open = v === 'bundles'
@@ -72,6 +75,41 @@ function resetEditor() {
   name.value = ''
   color.value = BINDING_GROUP_COLORS[0]
   selected.value = new Set()
+  snapshot.value = null
+}
+
+const dirty = computed(() => {
+  if (!editorOpen.value || !snapshot.value) return false
+  const current = [...selected.value].sort().join('\u0000')
+  const base = [...snapshot.value.members].sort().join('\u0000')
+  return name.value.trim() !== snapshot.value.name
+    || color.value !== snapshot.value.color
+    || current !== base
+})
+
+function requestClose() {
+  if (!dirty.value) { close(); return }
+  void ui.askConfirm({
+    title: '放弃未保存的修改？',
+    message: '当前小组的编辑内容不会保存。',
+    danger: true,
+    confirmText: '放弃修改',
+  }).then(ok => { if (ok) close() })
+}
+
+function onEscCapture(e: KeyboardEvent) {
+  if (e.key !== 'Escape' || !isOpen.value || !editorOpen.value) return
+  if (ui.state.confirm) return
+  e.preventDefault()
+  e.stopPropagation()
+  requestClose()
+}
+
+onMounted(() => window.addEventListener('keydown', onEscCapture, true))
+onBeforeUnmount(() => window.removeEventListener('keydown', onEscCapture, true))
+
+function allSelected(names: string[]): boolean {
+  return names.length > 0 && names.every(n => selected.value.has(n))
 }
 
 function close() {
@@ -82,6 +120,7 @@ function startNew() {
   void animateHeight(() => {
     resetEditor()
     editorOpen.value = true
+    snapshot.value = { name: '', color: BINDING_GROUP_COLORS[0], members: [] }
   })
   focusEditor()
 }
@@ -93,6 +132,11 @@ function startEdit(g: Bundle) {
     name.value = g.name
     color.value = g.color
     selected.value = new Set(g.members.map(m => m.name).filter(Boolean))
+    snapshot.value = {
+      name: g.name,
+      color: g.color,
+      members: g.members.map(m => m.name).filter(Boolean),
+    }
   })
   focusEditor()
 }
@@ -139,8 +183,16 @@ function removeMember(g: Bundle, name: string) {
 }
 
 function dissolve(g: Bundle) {
-  rel.dissolve(g.id)
-  if (editingId.value === g.id) resetEditor()
+  void ui.askConfirm({
+    title: `拆散「${g.name}」？`,
+    message: `${g.members.length} 人的小组关系会被移除，成员本身不受影响。此操作不可撤销。`,
+    danger: true,
+    confirmText: '拆散',
+  }).then(ok => {
+    if (!ok) return
+    rel.dissolve(g.id)
+    if (editingId.value === g.id) resetEditor()
+  })
 }
 
 function save() {
@@ -166,11 +218,18 @@ function save() {
 
 <template>
   <Transition name="modal">
-    <div v-if="isOpen" class="modal-backdrop" @click.self="close">
-      <div ref="modalRef" class="modal modal--wide">
+    <div v-if="isOpen" class="modal-backdrop" @click.self="requestClose">
+      <div
+        ref="modalRef"
+        class="modal modal--wide"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bundles-dialog-title"
+        tabindex="-1"
+      >
         <div class="modal__header">
-          <span>{{ editorOpen ? (editingId ? '编辑小组' : '新建小组') : '小组' }}</span>
-          <button class="btn btn--ghost btn--icon" @click="close" aria-label="关闭">×</button>
+          <h2 id="bundles-dialog-title" class="modal__title">{{ editorOpen ? (editingId ? '编辑小组' : '新建小组') : '小组' }}</h2>
+          <button class="btn btn--ghost btn--icon" @click="requestClose" aria-label="关闭">×</button>
         </div>
 
         <div class="modal__body">
@@ -215,7 +274,7 @@ function save() {
             <p class="modal-lead">勾选至少 2 人，抽中时整组一起出。</p>
 
             <div class="field">
-              <label class="field__label">名称</label>
+              <label for="bundle-name" class="field__label">名称</label>
               <input id="bundle-name" v-model="name" class="input" placeholder="例如：双人搭档" style="max-width: 260px;" />
             </div>
 
@@ -249,7 +308,7 @@ function save() {
                 <div v-if="currentItems.length > 0" class="rel-source">
                   <div class="rel-source__head">
                     <span>当前名单（{{ currentItems.length }}）</span>
-                    <button class="btn btn--ghost btn--xs" @click="selectAll(currentItems.map(i => i.name))">全选</button>
+                    <button class="btn btn--ghost btn--xs" @click="selectAll(currentItems.map(i => i.name))">{{ allSelected(currentItems.map(i => i.name)) ? '取消全选' : '全选' }}</button>
                   </div>
                   <div class="chip-list">
                     <label
@@ -267,7 +326,7 @@ function save() {
                 <div v-for="bk in bookItems" :key="bk.id" class="rel-source">
                   <div class="rel-source__head">
                     <span>名册 · {{ bk.name }}（{{ bk.items.length }}）</span>
-                    <button class="btn btn--ghost btn--xs" @click="selectAll(bk.items.map(i => i.name))">整册选</button>
+                    <button class="btn btn--ghost btn--xs" @click="selectAll(bk.items.map(i => i.name))">{{ allSelected(bk.items.map(i => i.name)) ? '取消全选' : '整册选' }}</button>
                   </div>
                   <div class="chip-list">
                     <label
@@ -297,7 +356,7 @@ function save() {
               {{ editingId ? '保存小组' : '创建小组' }}
             </button>
           </template>
-          <button v-else class="btn btn--primary" @click="close">关闭</button>
+          <button v-else class="btn" @click="close">关闭</button>
         </div>
       </div>
     </div>

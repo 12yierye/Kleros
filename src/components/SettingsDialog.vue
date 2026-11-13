@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import { useUi } from '@/composables/useUi'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { useBlackWhiteList } from '@/composables/useBlackWhiteList'
@@ -18,6 +19,9 @@ import ToggleSwitch from './ToggleSwitch.vue'
 import HintTip from './HintTip.vue'
 
 const ui = useUi()
+const modalRef = ref<HTMLElement | null>(null)
+const isOpen = computed(() => ui.state.modal === 'settings')
+useFocusTrap(isOpen, modalRef)
 const roster = useRoster()
 const permanent = usePermanentRoster()
 const bw = useBlackWhiteList()
@@ -189,16 +193,23 @@ function onImportClick() {
 <template>
 <Transition name="modal">
   <div v-if="ui.state.modal === 'settings'" class="modal-backdrop" @click.self="close">
-    <div class="modal modal--wide">
+    <div
+      ref="modalRef"
+      class="modal modal--wide"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-dialog-title"
+      tabindex="-1"
+    >
       <div class="modal__header">
-        <span>设置</span>
+        <h2 id="settings-dialog-title" class="modal__title">设置</h2>
         <button class="btn btn--ghost btn--icon" @click="close" aria-label="关闭">×</button>
       </div>
 
       <div class="modal__body">
         <div class="settings">
           <section class="settings-section">
-            <div class="settings-section__title">外观</div>
+            <h3 class="settings-section__title">外观</h3>
 
             <div class="settings-row">
               <span class="settings-row__label">主题</span>
@@ -225,7 +236,7 @@ function onImportClick() {
           </section>
 
           <section class="settings-section">
-            <div class="settings-section__title">界面</div>
+            <h3 class="settings-section__title">界面</h3>
 
             <div class="settings-row">
               <span class="settings-row__label">
@@ -247,10 +258,7 @@ function onImportClick() {
             </div>
 
             <div class="settings-row">
-              <span class="settings-row__label">
-                记住布局
-                <HintTip text="启动时沿用上次使用的界面布局" />
-              </span>
+              <span class="settings-row__label">记住布局</span>
               <div class="settings-row__control">
                 <ToggleSwitch v-model="rememberLayout" label="记住布局" />
               </div>
@@ -258,12 +266,12 @@ function onImportClick() {
           </section>
 
           <section class="settings-section">
-            <div class="settings-section__title">抽取</div>
+            <h3 class="settings-section__title">抽取</h3>
 
             <div class="settings-row">
               <span class="settings-row__label">
                 抽取方式
-                <HintTip :text="'直接出结果：只需点一下\n滚动动画：点一下开始滚动，再点一下定格'" />
+                <HintTip text="点一下开始，再点一下停止" />
               </span>
               <div class="settings-row__control">
                 <div class="radio-group">
@@ -278,31 +286,36 @@ function onImportClick() {
               </div>
             </div>
 
-            <div class="settings-row">
-              <span class="settings-row__label">
-                滚动速度
-                <HintTip :text="'默认 x1.0\n数值越大滚得越快'" />
-              </span>
-              <div class="settings-row__control">
-                <input
-                  type="range"
-                  min="0.1"
-                  max="3"
-                  step="0.1"
-                  :value="prefs.scrollSpeed"
-                  :style="{ '--range-progress': speedProgress }"
-                  @input="update('scrollSpeed', clampSpeed(+($event.target as HTMLInputElement).value))"
-                  class="range"
-                  aria-label="滚动速度"
-                />
-                <span class="speed-value">×{{ prefs.scrollSpeed.toFixed(1) }}</span>
+            <div
+              class="settings-collapse"
+              :class="{ 'settings-collapse--closed': prefs.pickStyle !== 'animate' }"
+              :inert="prefs.pickStyle !== 'animate'"
+            >
+              <div class="settings-collapse__inner">
+                <div class="settings-row">
+                  <span class="settings-row__label">滚动速度</span>
+                  <div class="settings-row__control">
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="3"
+                      step="0.1"
+                      :value="prefs.scrollSpeed"
+                      :style="{ '--range-progress': speedProgress }"
+                      @input="update('scrollSpeed', clampSpeed(+($event.target as HTMLInputElement).value))"
+                      class="range"
+                      aria-label="滚动速度"
+                    />
+                    <span class="speed-value">×{{ prefs.scrollSpeed.toFixed(1) }}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
             <div class="settings-row">
               <span class="settings-row__label">
                 分隔符
-                <HintTip :text="'同时抽中多人时的分隔符\n默认两个空格，留空默认'" />
+                <HintTip text="留空恢复两个空格" />
               </span>
               <div class="settings-row__control" style="flex: 1;">
                 <input
@@ -311,6 +324,7 @@ function onImportClick() {
                   class="input"
                   style="max-width: 110px;"
                   placeholder="两个空格"
+                  aria-label="多人结果分隔符"
                 />
                 <button class="btn btn--sm" @click="update('pickSeparator', '  ')">恢复默认</button>
                 <span class="sep-preview">张三{{ prefs.pickSeparator }}李四</span>
@@ -318,30 +332,45 @@ function onImportClick() {
             </div>
 
             <div class="settings-row">
-              <span class="settings-row__label">
-                按钮文案
-                <HintTip :text="'左：开始按钮的文案\n右：停止滚动的按钮文案'" />
-              </span>
+              <span class="settings-row__label">开始按钮</span>
               <div class="settings-row__control" style="flex: 1;">
                 <input
                   :value="prefs.startButtonText"
                   @change="update('startButtonText', ($event.target as HTMLInputElement).value || '开始')"
                   class="input"
+                  style="max-width: 260px;"
                   placeholder="开始"
+                  aria-label="开始按钮文案"
                 />
-                <input
-                  :value="prefs.pauseButtonText"
-                  @change="update('pauseButtonText', ($event.target as HTMLInputElement).value || '停止')"
-                  class="input"
-                  placeholder="停止"
-                />
+              </div>
+            </div>
+
+            <div
+              class="settings-collapse"
+              :class="{ 'settings-collapse--closed': prefs.pickStyle !== 'animate' }"
+              :inert="prefs.pickStyle !== 'animate'"
+            >
+              <div class="settings-collapse__inner">
+                <div class="settings-row">
+                  <span class="settings-row__label">停止按钮</span>
+                  <div class="settings-row__control" style="flex: 1;">
+                    <input
+                      :value="prefs.pauseButtonText"
+                      @change="update('pauseButtonText', ($event.target as HTMLInputElement).value || '停止')"
+                      class="input"
+                      style="max-width: 260px;"
+                      placeholder="停止"
+                      aria-label="停止按钮文案"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
             <div class="settings-row">
               <span class="settings-row__label">
                 空结果文案
-                <HintTip :text="'没有可抽的人时，结果区随机显示其中一条\n每次启动重新随机'" />
+                <HintTip text="名单为空时随机显示，启动时重选" />
               </span>
               <div class="settings-row__control">
                 <span class="text-subtle" style="font-size: 12px;">{{ prefs.idleTexts?.length ?? 0 }} 条</span>
@@ -351,12 +380,12 @@ function onImportClick() {
           </section>
 
           <section class="settings-section">
-            <div class="settings-section__title">数据</div>
+            <h3 class="settings-section__title">数据</h3>
 
             <div class="settings-row">
               <span class="settings-row__label">
                 备份
-                <HintTip :text="'导出全部数据\n导入会覆盖现有数据'" />
+                <HintTip text="导入会覆盖现有数据" />
               </span>
               <div class="settings-row__control">
                 <button class="btn btn--sm" @click="onExport">导出 JSON</button>
@@ -366,6 +395,8 @@ function onImportClick() {
             <div
               v-if="importMsg"
               class="settings-hint"
+              role="status"
+              aria-live="polite"
               :style="{
                 color: importMsg.ok ? 'var(--color-ok-text)' : 'var(--color-warn-text)',
                 background: importMsg.ok ? 'var(--color-ok-soft)' : 'var(--color-warn-soft)',
@@ -376,13 +407,10 @@ function onImportClick() {
           </section>
 
           <section class="settings-section">
-            <div class="settings-section__title">高级</div>
+            <h3 class="settings-section__title">高级</h3>
 
             <div class="settings-row">
-              <span class="settings-row__label">
-                维护
-                <HintTip :text="'全局重命名：按名字批量替换\n清除缓存：抹除全部存储并刷新'" />
-              </span>
+              <span class="settings-row__label">维护</span>
               <div class="settings-row__control" style="flex-wrap: wrap; justify-content: flex-end;">
                 <button class="btn btn--sm" @click="openGlobalRename">全局重命名</button>
                 <button class="btn btn--sm" @click="openDBInspect">查看数据库</button>
@@ -393,12 +421,12 @@ function onImportClick() {
           </section>
 
           <section class="settings-section">
-            <div class="settings-section__title">关于</div>
+            <h3 class="settings-section__title">关于</h3>
 
             <div class="settings-row">
               <span class="settings-row__label">
                 版本
-                <HintTip :text="'检查更新只在点击时查询 GitHub Releases\n平时不发任何请求'" />
+                <HintTip text="仅点击时联网检查，平时不发请求" />
               </span>
               <div class="settings-row__control">
                 <span class="version-tag">v{{ currentVersion }}</span>

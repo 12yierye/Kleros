@@ -115,7 +115,7 @@
 }
 
 .tab--active {
-  color: var(--color-primary);
+  color: var(--color-primary-text, var(--color-primary));
   border-bottom-color: var(--color-primary);
   font-weight: 500;
 }
@@ -142,7 +142,7 @@
 }
 
 .view-tabs__tab--active {
-  color: var(--color-primary);
+  color: var(--color-primary-text, var(--color-primary));
   border-bottom-color: var(--color-primary);
 }
 
@@ -162,6 +162,11 @@
   max-width: 100%;
 }
 
+.chip:focus-visible {
+  outline: 2px solid var(--color-primary-text, var(--color-primary));
+  outline-offset: 2px;
+}
+
 .chip:hover {
   background: var(--color-chip-bg-hover);
 }
@@ -169,25 +174,24 @@
 .chip--picked {
   background: var(--color-chip-picked);
   border-color: var(--color-success);
-  opacity: 0.7;
 }
 
 .chip--black {
   background: var(--color-danger-soft);
   border-color: var(--color-danger);
-  color: var(--color-danger);
+  color: var(--color-danger-on-soft);
 }
 
 .chip--white {
   background: var(--color-primary-soft);
   border-color: var(--color-primary);
-  color: var(--color-primary);
+  color: var(--color-primary-text, var(--color-primary));
 }
 
 .chip--blocked {
   background: var(--color-bg-sunken);
   border-color: var(--color-border);
-  color: var(--color-text-subtle);
+  color: var(--color-text-muted);
   text-decoration: line-through;
 }
 
@@ -198,6 +202,7 @@
 }
 
 .chip__close {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -209,6 +214,13 @@
   line-height: 1;
 }
 
+/* 视觉尺寸保持不变，扩大实际可点区域（约 20×24） */
+.chip__close::after {
+  content: '';
+  position: absolute;
+  inset: -4px -4px -4px 0;
+}
+
 .chip__edit {
   display: inline-flex;
   align-items: center;
@@ -216,9 +228,16 @@
   width: 22px;
   height: 22px;
   border-radius: var(--r-full);
-  background: var(--color-chip-bg-hover);
+  background: transparent;
   color: var(--color-text-muted);
+  opacity: 0.6;
   transition: opacity 0.12s, background 0.12s, color 0.12s;
+}
+
+/* 默认低对比常显，悬停/聚焦时提亮；不用完全隐藏，避免用户找不到 */
+.chip:hover .chip__edit,
+.chip:focus-within .chip__edit {
+  opacity: 1;
 }
 
 .chip:hover .chip__edit {
@@ -251,9 +270,7 @@
 
 /* 归属明细 tooltip */
 .chip__tip {
-  position: absolute;
-  bottom: calc(100% + 7px);
-  left: 50%;
+  position: fixed;
   z-index: 70;
   display: flex;
   flex-direction: column;
@@ -268,17 +285,15 @@
   box-shadow: var(--sh-md);
   opacity: 0;
   visibility: hidden;
-  transform: translateX(-50%) translateY(2px);
-  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0s linear 0.12s;
+  transform: none;
+  transition: opacity 0.12s ease, visibility 0s linear 0.12s;
   pointer-events: none;
 }
 
-.chip:hover .chip__tip,
-.chip:focus-within .chip__tip {
+.chip__tip--visible {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(0);
-  transition-delay: 0s;
+  transition: opacity 0.12s ease, visibility 0s linear 0s;
 }
 
 .chip__tip-row {
@@ -350,6 +365,7 @@
   font-weight: 600;
   line-height: 16px;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .panel-block__hint {
@@ -397,6 +413,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  outline: none;
 }
 
 .modal--wide {
@@ -410,6 +427,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.modal__title {
+  margin: 0;
   font-size: var(--fs-md);
   font-weight: 600;
 }
@@ -641,7 +664,7 @@
   font-size: var(--fs-4xl);
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: var(--color-primary);
+  color: var(--color-primary-text, var(--color-primary));
   min-height: 80px;
   display: flex;
   align-items: center;
@@ -766,6 +789,10 @@
   display: flex;
   align-items: center;
   gap: var(--sp-4);
+}
+
+.app-footer__stats b {
+  font-variant-numeric: tabular-nums;
 }
 
 .app-footer__file-status {
@@ -1083,7 +1110,7 @@
 
 .name-picker__item:hover {
   background: var(--color-primary-soft);
-  color: var(--color-primary);
+  color: var(--color-primary-text, var(--color-primary));
 }
 
 .name-picker__from {
@@ -1094,8 +1121,7 @@
 }
 
 .name-picker__item:hover .name-picker__from {
-  color: var(--color-primary);
-  opacity: 0.75;
+  color: var(--color-primary-text, var(--color-primary));
 }
 
 .name-picker__empty {
@@ -1111,6 +1137,14 @@
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid var(--color-border);
+}
+
+.roster-collapse svg {
+  transition: transform 0.15s ease;
+}
+
+.roster-collapse--down svg {
+  transform: rotate(90deg);
 }
 
 /* === Roster page === */
@@ -1135,6 +1169,18 @@
   font-weight: 600;
 }
 
+.block-head__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.block-head__title-row .block-head__title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .block-head__count {
   min-width: 18px;
   padding: 0 6px;
@@ -1145,6 +1191,7 @@
   font-weight: 600;
   line-height: 17px;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .block-head__sub {
@@ -1290,6 +1337,24 @@
   align-items: center;
   gap: var(--sp-3);
   padding: 6px 0;
+}
+
+.settings-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 0.22s ease, opacity 0.18s ease;
+}
+
+.settings-collapse--closed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-collapse__inner {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .settings-row__label {
@@ -1580,7 +1645,7 @@ input[type="checkbox"]:disabled {
 .pick-chip--on {
   background: var(--color-primary-soft);
   border-color: var(--color-primary);
-  color: var(--color-primary);
+  color: var(--color-primary-text, var(--color-primary));
 }
 
 /* 添加面板里的「从名册加入」 */
@@ -1905,7 +1970,7 @@ input[type="checkbox"]:disabled {
 }
 
 .md-body a {
-  color: var(--color-primary);
+  color: var(--color-primary-text, var(--color-primary));
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -1914,4 +1979,55 @@ input[type="checkbox"]:disabled {
   margin: 10px 0;
   border: none;
   border-top: 1px solid var(--color-border);
+}
+
+/* === Chip 列表进出场 === */
+.chip-fade-enter-active,
+.chip-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.chip-fade-enter-from,
+.chip-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+/* === 减少动态效果 === */
+@media (prefers-reduced-motion: reduce) {
+  .reel__track,
+  .btn--undo-glow,
+  .picker-stage--blocked,
+  .app-main {
+    animation: none;
+  }
+
+  .modal-enter-active,
+  .modal-leave-active,
+  .modal-enter-active .modal,
+  .modal-leave-active .modal,
+  .toast-enter-active,
+  .toast-leave-active,
+  .reveal-enter-active,
+  .reveal-leave-active,
+  .section-enter-active,
+  .section-leave-active,
+  .chip-fade-enter-active,
+  .chip-fade-leave-active,
+  .add-area,
+  .add-area__card,
+  .app-main--split .app-main__col--roster,
+  .app-main--split .app-main__col--roster-collapsed,
+  .app-main--split .app-main__col--roster .chip-list,
+  .app-main--split .app-main__col--roster .empty,
+  .app-main--split .app-main__col--roster-collapsed .chip-list,
+  .app-main--split .app-main__col--roster-collapsed .empty,
+  .roster-rail-reopen,
+  .app-main__dock-collapse,
+  .app-main__dock-collapse--closed,
+  .stack-roster-reopen,
+  .settings-collapse,
+  .settings-collapse--closed {
+    transition: none;
+  }
 }

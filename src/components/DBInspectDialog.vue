@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useUi } from '@/composables/useUi'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 import { getDB } from '@/composables/useDB'
 import { STORAGE_KEYS } from '@/constants'
 
 const ui = useUi()
 const isOpen = ref(false)
+const modalRef = ref<HTMLElement | null>(null)
+useFocusTrap(isOpen, modalRef)
 const loading = ref(false)
 const error = ref('')
 const copyMsg = ref('')
@@ -106,9 +109,16 @@ function close() {
 <template>
   <Transition name="modal">
     <div v-if="isOpen" class="modal-backdrop" @click.self="close">
-      <div class="modal modal--wide">
+      <div
+        ref="modalRef"
+        class="modal modal--wide"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="db-inspect-title"
+        tabindex="-1"
+      >
         <div class="modal__header">
-          <span>IndexedDB 诊断</span>
+          <h2 id="db-inspect-title" class="modal__title">IndexedDB 诊断</h2>
           <button class="btn btn--ghost btn--icon" @click="close" aria-label="关闭">×</button>
         </div>
         <div class="modal__body db-inspect">
@@ -154,8 +164,8 @@ function close() {
 .db-inspect__error {
   padding: 8px 12px;
   border-radius: 6px;
-  background: #fff5e6;
-  color: #b56e00;
+  background: var(--color-warn-soft);
+  color: var(--color-warn-text);
   font-size: 13px;
 }
 .db-inspect__loading {

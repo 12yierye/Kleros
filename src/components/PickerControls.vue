@@ -23,6 +23,7 @@ const poolSize = computed(() => picker.poolSize.value)
 const isPlaying = computed(() => picker.isPicking.value)
 const exhausted = computed(() => poolSize.value === 0 && picks.value.length > 0)
 const overPool = computed(() => poolSize.value > 0 && picker.count.value > poolSize.value)
+const countLabel = computed(() => prefs.value.drawMode === 'group' ? '目标人数' : '抽取人数')
 
 const mainLabel = computed(() => {
   if (prefs.value.pickStyle === 'animate') {
@@ -73,7 +74,7 @@ function onUndoLast() {
 <template>
   <section class="main-section picker-bar">
     <div class="picker-bar__group">
-      <span class="picker-bar__label">抽取人数</span>
+      <span class="picker-bar__label">{{ countLabel }}</span>
       <div class="stepper">
         <button class="stepper__btn" @click="picker.dec" :disabled="picker.count.value <= 1" aria-label="减少人数">−</button>
         <span class="stepper__value">{{ picker.count.value }}</span>
@@ -95,7 +96,7 @@ function onUndoLast() {
             :class="{ 'draw-mode__item--active': prefs.drawMode === 'group' }"
             @click="setMode('group')"
           >按小组</button>
-          <span class="tip__bubble">抽到小组成员时，整个小组一起出（共 {{ bundles.all.value.length }} 组）</span>
+          <span class="tip__bubble">抽到小组成员时，整个小组一起出（共 {{ bundles.all.value.length }} 组），整组人数可能超过目标人数</span>
         </span>
       </div>
 
@@ -114,7 +115,7 @@ function onUndoLast() {
         :class="{ 'btn--undo-glow': exhausted }"
         @click="onUndoLast"
         :disabled="picks.length === 0"
-        title="撤销上一轮抽取"
+        title="撤销上一次抽取"
       >↶ 撤销</button>
       <button
         class="btn btn--primary btn--xl"

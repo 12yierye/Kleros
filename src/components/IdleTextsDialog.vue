@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useUi } from '@/composables/useUi'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 import { useSettings } from '@/composables/useSettings'
 import { DEFAULT_IDLE_TEXTS } from '@/types/settings'
 
 const ui = useUi()
+const modalRef = ref<HTMLElement | null>(null)
+const isOpen = computed(() => ui.state.modal === 'idleTexts')
+useFocusTrap(isOpen, modalRef)
 const { prefs } = useSettings()
 
 const draft = ref('')
@@ -35,9 +39,16 @@ function save() {
 <template>
   <Transition name="modal">
     <div v-if="ui.state.modal === 'idleTexts'" class="modal-backdrop" @click.self="close">
-      <div class="modal">
+      <div
+        ref="modalRef"
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="idle-texts-title"
+        tabindex="-1"
+      >
         <div class="modal__header">
-          <span>空结果文案</span>
+          <h2 id="idle-texts-title" class="modal__title">空结果文案</h2>
           <button class="btn btn--ghost btn--icon" @click="close" aria-label="关闭">×</button>
         </div>
 
@@ -47,12 +58,14 @@ function save() {
           </p>
 
           <div class="field">
-            <label class="field__label">文案列表（一行一条）</label>
+            <label for="idle-texts-input" class="field__label">文案列表（一行一条）</label>
             <textarea
+              id="idle-texts-input"
               v-model="draft"
               class="textarea"
               rows="7"
               placeholder="名单还是空的"
+              data-autofocus
             ></textarea>
             <p class="field__hint">
               最多 20 条，超出的会忽略。全部清空后保存，恢复成默认文案。

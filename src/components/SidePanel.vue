@@ -28,21 +28,37 @@ function onSettings() {
         <button
           v-for="v in views"
           :key="v.key"
+          :id="`side-tab-${v.key}`"
           class="side-tab"
           :class="{ 'side-tab--active': active === v.key }"
           role="tab"
           :aria-selected="active === v.key"
+          :aria-controls="`side-view-${v.key}`"
           @click="ui.showSideView(v.key)"
         >{{ v.label }}</button>
       </div>
 
       <div class="app-side__body">
         <Transition name="side-fade" mode="out-in">
-          <div v-if="active === 'filters'" key="filters" class="side-view">
+          <div
+            v-if="active === 'filters'"
+            id="side-view-filters"
+            key="filters"
+            class="side-view"
+            role="tabpanel"
+            aria-labelledby="side-tab-filters"
+          >
             <BlackListSection />
             <WhiteListSection />
           </div>
-          <PickOptionsSection v-else key="options" class="side-view" />
+          <PickOptionsSection
+            v-else
+            id="side-view-options"
+            key="options"
+            class="side-view"
+            role="tabpanel"
+            aria-labelledby="side-tab-options"
+          />
         </Transition>
       </div>
 

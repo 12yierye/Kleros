@@ -15,8 +15,17 @@ const { isBlack } = useBlackWhiteList()
 const bundles = useBundles()
 const ui = useUi()
 
+const props = withDefaults(defineProps<{
+  collapsible?: boolean
+  collapseDirection?: 'right' | 'down'
+}>(), {
+  collapsible: false,
+  collapseDirection: 'right',
+})
+const emit = defineEmits<{ (e: 'collapse'): void }>()
+
 const currentEntries = computed(() => roster.entries.value)
-const addOpen = ref(currentEntries.value.length === 0)
+const addOpen = ref(false)
 
 /* ---------- 轻提示 ---------- */
 const flash = ref<string | null>(null)
@@ -47,9 +56,17 @@ function toggleSelect(uid: string) {
 function onDeleteSelected() {
   const ids = [...batchSelected.value]
   if (ids.length === 0) return
-  roster.deleteEntries(ids)
-  batchSelected.value = new Set()
-  say(`已删除 ${ids.length} 人`)
+  void ui.askConfirm({
+    title: `删除选中的 ${ids.length} 人？`,
+    message: '只从当前名单移除，名册不受影响。此操作不可撤销。',
+    danger: true,
+    confirmText: '删除',
+  }).then(ok => {
+    if (!ok) return
+    roster.deleteEntries(ids)
+    batchSelected.value = new Set()
+    say(`已删除 ${ids.length} 人`)
+  })
 }
 
 function onClearCurrent() {
@@ -108,20 +125,35 @@ function accentOf(uid: string): string {
 <template>
   <div class="roster-page">
     <Transition name="toast">
-      <div v-if="flash" class="flash">{{ flash }}</div>
+      <div v-if="flash" class="flash" role="status" aria-live="polite">{{ flash }}</div>
     </Transition>
 
     <section class="main-section">
       <div class="block-head">
         <div class="block-head__text">
-          <h3 class="block-head__title">
-            当前名单
-            <span class="block-head__count">{{ currentEntries.length }}</span>
-          </h3>
+          <div class="block-head__title-row">
+            <h2 class="block-head__title">
+              当前名单
+              <span class="block-head__count">{{ currentEntries.length }}</span>
+            </h2>
+            <button
+              v-if="props.collapsible"
+              class="btn btn--xs btn--ghost roster-collapse"
+              :class="{ 'roster-collapse--down': props.collapseDirection === 'down' }"
+              type="button"
+              title="收起名单栏"
+              aria-label="收起名单栏"
+              @click="emit('collapse')"
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M8 4l6 6-6 6" />
+              </svg>
+            </button>
+          </div>
           <p class="block-head__sub">这次抽取用 · 可随时清空</p>
         </div>
         <div class="block-head__actions">
-          <button class="btn btn--sm btn--primary" @click="addOpen = !addOpen">{{ addOpen ? '收起' : '＋ 添加' }}</button>
+          <button class="btn btn--sm btn--primary" @click="addOpen = !addOpen">{{ addOpen ? '收起' : '添加' }}</button>
           <span class="tip">
             <button class="btn btn--sm" @click="ui.openBundles()">
               小组{{ bundles.all.value.length ? ` ${bundles.all.value.length}` : '' }}
@@ -149,8 +181,12 @@ function accentOf(uid: string): string {
         </div>
       </div>
 
-      <div v-if="currentEntries.length === 0" class="empty">还没有人，点「＋ 添加」，或从顶部「名册」取用</div>
-      <div v-else class="chip-list">
+      <div v-if="currentEntries.length === 0" class="empty">
+        {{ addOpen
+          ? '在上方粘贴或导入名单，也可以从顶部「名册」取用'
+          : '还没有人，点「添加」，或从顶部「名册」取用' }}
+      </div>
+      <TransitionGroup v-else name="chip-fade" tag="div" class="chip-list">
         <NameChip
           v-for="e in currentEntries"
           :key="e.uid"
@@ -165,7 +201,7 @@ function accentOf(uid: string): string {
           @rename="onRenameCurrent(e)"
           @contextmenu.prevent="onRenameCurrent(e)"
         />
-      </div>
+      </TransitionGroup>
     </section>
   </div>
 </template>

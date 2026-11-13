@@ -52,11 +52,11 @@ function undoLast() {
   <section class="main-section pick-history">
     <div class="block-head">
       <div class="block-head__text">
-        <h3 class="block-head__title">
+        <h2 class="block-head__title">
           抽取记录
           <span class="block-head__count">{{ picks.length }}</span>
-        </h3>
-        <p class="block-head__sub">最新在上 · 悬停某条可撤销到它之前 · 固定 6 条高度</p>
+        </h2>
+        <p class="block-head__sub">最新在上 · 悬停或聚焦某条可撤销到它之前</p>
       </div>
       <div class="block-head__actions">
         <button class="btn btn--sm" :disabled="picks.length === 0" @click="undoLast">撤销上一次</button>
@@ -66,7 +66,7 @@ function undoLast() {
     <div class="pick-log">
       <div v-if="picks.length === 0" class="pick-log__empty">本轮还没有抽取记录</div>
 
-      <template v-else>
+      <TransitionGroup v-else name="row-fade">
         <div v-for="(pick, i) in reversed" :key="`${pick.time}-${i}`" class="pick-log__row">
           <span class="pick-log__time">{{ fmtShort(pick.time) }}</span>
           <span class="pick-log__count">{{ pick.uids.length }} 人</span>
@@ -82,7 +82,7 @@ function undoLast() {
           </span>
           <button class="pick-log__undo" @click="undo(i)" title="撤销这次及之后的所有抽取">↶ 撤销</button>
         </div>
-      </template>
+      </TransitionGroup>
     </div>
   </section>
 </template>
@@ -144,7 +144,7 @@ function undoLast() {
 }
 
 .pick-log__group {
-  color: var(--color-primary);
+  color: var(--color-primary-text, var(--color-primary));
   font-weight: 700;
 }
 
@@ -158,6 +158,7 @@ function undoLast() {
 
 .pick-log__undo {
   flex-shrink: 0;
+  min-height: 24px;
   padding: 1px 6px;
   border-radius: var(--r-sm);
   font-size: 11px;
@@ -166,12 +167,36 @@ function undoLast() {
   transition: opacity 0.12s, background 0.12s, color 0.12s;
 }
 
-.pick-log__row:hover .pick-log__undo {
+.pick-log__row:hover .pick-log__undo,
+.pick-log__row:focus-within .pick-log__undo {
   opacity: 1;
 }
 
 .pick-log__undo:hover {
   background: var(--color-bg-elev);
   color: var(--color-text);
+}
+
+.pick-log__undo:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.row-fade-enter-active,
+.row-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.row-fade-enter-from,
+.row-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row-fade-enter-active,
+  .row-fade-leave-active {
+    transition: none;
+  }
 }
 </style>

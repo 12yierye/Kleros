@@ -32,7 +32,7 @@ const roundText = computed(() => {
           <path d="M8 3.5v13" />
         </svg>
       </button>
-      <span class="app-header__brand">Kleros</span>
+      <h1 class="app-header__brand">Kleros</h1>
       <span class="app-header__round">
         <span v-if="picked > 0" class="app-header__dot"></span>
         {{ roundText }}

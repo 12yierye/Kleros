@@ -194,7 +194,7 @@ async function onFile(e: Event) {
               <span class="book-pick__name">{{ g.name }}</span>
               <span class="book-pick__count">{{ g.members.length }} 人</span>
               <span class="flex-1"></span>
-              <button class="btn btn--sm btn--primary" @click="addFromBook(g)">加入当前名单</button>
+              <button class="btn btn--sm" @click="addFromBook(g)">加入当前名单</button>
             </div>
           </div>
         </div>
@@ -204,6 +204,8 @@ async function onFile(e: Event) {
     <Transition name="toast">
     <div
       v-if="message"
+      role="status"
+      aria-live="polite"
       :style="{
         marginTop: '12px',
         padding: '6px 10px',

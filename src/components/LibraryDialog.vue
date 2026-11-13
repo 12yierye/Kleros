@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useUi } from '@/composables/useUi'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { useModalHeight } from '@/composables/useModalHeight'
@@ -15,11 +16,13 @@ const modalRef = ref<HTMLElement | null>(null)
 const { animateHeight } = useModalHeight(modalRef)
 
 const isOpen = ref(false)
+useFocusTrap(isOpen, modalRef)
 const editorOpen = ref(false)
 const editingId = ref<string | null>(null)
 const name = ref('')
 const keyword = ref('')
 const picked = ref<Set<string>>(new Set())
+const snapshot = ref<{ name: string; members: string[] } | null>(null)
 const notice = ref('')
 
 watch(() => ui.state.modal, (v) => {
@@ -62,6 +65,39 @@ function resetEditor() {
   name.value = ''
   keyword.value = ''
   picked.value = new Set()
+  snapshot.value = null
+}
+
+const dirty = computed(() => {
+  if (!editorOpen.value || !snapshot.value) return false
+  const current = [...picked.value].sort().join('\u0000')
+  const base = [...snapshot.value.members].sort().join('\u0000')
+  return name.value.trim() !== snapshot.value.name || current !== base
+})
+
+function requestClose() {
+  if (!dirty.value) { close(); return }
+  void ui.askConfirm({
+    title: '放弃未保存的修改？',
+    message: '当前名册的编辑内容不会保存。',
+    danger: true,
+    confirmText: '放弃修改',
+  }).then(ok => { if (ok) close() })
+}
+
+function onEscCapture(e: KeyboardEvent) {
+  if (e.key !== 'Escape' || !isOpen.value || !editorOpen.value) return
+  if (ui.state.confirm) return
+  e.preventDefault()
+  e.stopPropagation()
+  requestClose()
+}
+
+onMounted(() => window.addEventListener('keydown', onEscCapture, true))
+onBeforeUnmount(() => window.removeEventListener('keydown', onEscCapture, true))
+
+function allPicked(items: string[]): boolean {
+  return items.length > 0 && items.every(n => picked.value.has(n))
 }
 
 function say(text: string) {
@@ -76,6 +112,7 @@ function startNew() {
   void animateHeight(() => {
     resetEditor()
     editorOpen.value = true
+    snapshot.value = { name: '', members: [] }
   })
   focusEditor()
 }
@@ -87,6 +124,7 @@ function startEdit(g: PermanentGroup) {
     name.value = g.name
     keyword.value = ''
     picked.value = new Set(g.members.map(m => m.name))
+    snapshot.value = { name: g.name, members: g.members.map(m => m.name) }
   })
   focusEditor()
 }
@@ -166,17 +204,24 @@ function onRemoveMember(g: PermanentGroup, m: PermanentEntry) {
 
 <template>
   <Transition name="modal">
-    <div v-if="isOpen" class="modal-backdrop" @click.self="close">
-      <div ref="modalRef" class="modal modal--wide">
+    <div v-if="isOpen" class="modal-backdrop" @click.self="requestClose">
+      <div
+        ref="modalRef"
+        class="modal modal--wide"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="library-dialog-title"
+        tabindex="-1"
+      >
         <div class="modal__header">
-          <span>{{ editorOpen ? (editingId ? '编辑名册' : '新建名册') : '名册' }}</span>
-          <button class="btn btn--ghost btn--icon" @click="close" aria-label="关闭">×</button>
+          <h2 id="library-dialog-title" class="modal__title">{{ editorOpen ? (editingId ? '编辑名册' : '新建名册') : '名册' }}</h2>
+          <button class="btn btn--ghost btn--icon" @click="requestClose" aria-label="关闭">×</button>
         </div>
 
         <div class="modal__body">
           <!-- 列表视图 -->
           <template v-if="!editorOpen">
-            <p class="modal-lead">长期保存的名单。需要时在名单页的「从名册」里整册加入。</p>
+            <p class="modal-lead">长期保存的名单。需要时在「＋ 添加 → 从名册」里整册加入。</p>
 
             <div v-if="notice" class="lib-notice">{{ notice }}</div>
 
@@ -194,7 +239,7 @@ function onRemoveMember(g: PermanentGroup, m: PermanentEntry) {
                 <button class="btn btn--sm btn--danger" @click="onDeleteGroup(g)">删除</button>
               </div>
 
-              <div class="chip-list">
+              <TransitionGroup name="chip-fade" tag="div" class="chip-list">
                 <span
                   v-for="m in g.members"
                   :key="m.uid"
@@ -204,8 +249,8 @@ function onRemoveMember(g: PermanentGroup, m: PermanentEntry) {
                   <span class="chip__name">{{ m.name }}</span>
                   <button class="chip__close" @click="onRemoveMember(g, m)" title="从名册移除" aria-label="从名册移除">×</button>
                 </span>
-                <span v-if="g.members.length === 0" class="text-subtle" style="font-size: 12px;">空名册 · 点「编辑」选人</span>
-              </div>
+              </TransitionGroup>
+              <span v-if="g.members.length === 0" class="text-subtle" style="font-size: 12px;">空名册 · 点「编辑」选人</span>
             </div>
 
             <div style="margin-top: 14px;">
@@ -218,7 +263,7 @@ function onRemoveMember(g: PermanentGroup, m: PermanentEntry) {
             <p class="modal-lead">勾选要长期保存的人，之后可整册或按人加入当前名单。</p>
 
             <div class="field">
-              <label class="field__label">名册名</label>
+              <label for="lib-group-name" class="field__label">名册名</label>
               <input
                 id="lib-group-name"
                 v-model="name"
@@ -236,7 +281,7 @@ function onRemoveMember(g: PermanentGroup, m: PermanentEntry) {
 
               <div class="member-pick">
                 <div class="member-pick__bar">
-                  <input v-model="keyword" class="input" placeholder="搜索名字（拼音/首字母）…" />
+                  <input v-model="keyword" class="input" placeholder="搜索名字（拼音/首字母）…" aria-label="搜索成员" />
                   <button class="btn btn--sm" @click="clearAll" :disabled="picked.size === 0">清空已选</button>
                 </div>
 
@@ -248,7 +293,7 @@ function onRemoveMember(g: PermanentGroup, m: PermanentEntry) {
                   <div v-for="s in filteredSources" :key="s.label" class="member-pick__group">
                     <div class="member-pick__group-head">
                       <span>{{ s.label }}（{{ s.items.length }}）</span>
-                      <button class="btn btn--ghost btn--xs" @click="toggleSource(s.items)">全选</button>
+                      <button class="btn btn--ghost btn--xs" @click="toggleSource(s.items)">{{ allPicked(s.items) ? '取消全选' : '全选' }}</button>
                     </div>
                     <div class="chip-list">
                       <label
@@ -275,7 +320,7 @@ function onRemoveMember(g: PermanentGroup, m: PermanentEntry) {
               {{ editingId ? '保存名册' : '创建名册' }}
             </button>
           </template>
-          <button v-else class="btn btn--primary" @click="close">关闭</button>
+          <button v-else class="btn" @click="close">关闭</button>
         </div>
       </div>
     </div>
@@ -296,7 +341,7 @@ function onRemoveMember(g: PermanentGroup, m: PermanentEntry) {
   padding: 6px 10px;
   border-radius: var(--r-sm);
   background: var(--color-primary-soft);
-  color: var(--color-primary);
+  color: var(--color-primary-text, var(--color-primary));
   font-size: 11px;
 }
 </style>

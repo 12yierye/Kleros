@@ -138,7 +138,7 @@ function useWholeRoster() {
 
 .opt-limit__all {
   margin-left: auto;
-  color: var(--color-primary);
+  color: var(--color-primary-text, var(--color-primary));
 }
 
 .opt-hint {

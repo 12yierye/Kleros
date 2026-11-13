@@ -19,6 +19,8 @@ const {
   lastError, poolSize, pool, effectiveCount, units, stopAnimate,
 } = picker
 
+const emit = defineEmits<{ (e: 'go-roster'): void }>()
+
 /** 与 CSS 里的 .reel__item 高度保持一致 */
 const ITEM_H = 60
 const MAX_LANES = 6
@@ -113,6 +115,16 @@ const noGroupAvailable = computed(() =>
   && rosterEntries.value.length + permEntries.value.length > 0
 )
 
+/** 还没添加过任何人：需要引导用户先去名单页 */
+const firstRun = computed(() =>
+  poolSize.value === 0
+  && rosterEntries.value.length === 0
+  && permEntries.value.length === 0
+  && picks.value.length === 0
+)
+
+const showFirstRunCta = computed(() => firstRun.value && prefs.value.layoutMode === 'tabs')
+
 /* ---------- 空态文案：启动随机一条，设置里可改 ---------- */
 const idleText = ref('')
 function rollIdleText() {
@@ -132,6 +144,7 @@ const display = computed(() => {
   if (isPulse.value) return displayUids.value.map(nameOf).join(sep.value)
   if (isExhausted.value) return '本轮已抽完'
   if (noGroupAvailable.value) return '没有可抽的小组'
+  if (firstRun.value) return '先把名单放进来'
   // 没抽过（或刚开新一轮）：显示一条随机空态文案
   return idleText.value
 })
@@ -143,17 +156,27 @@ const isPlaceholder = computed(() =>
 const sub = computed(() => {
   if (lastError.value) return ''
   if (isPicking.value && poolSize.value === 1) return '候选只剩 1 人，结果已经确定'
-  if (isPicking.value) return `正在抽取 ${Math.min(effectiveCount.value, poolSize.value)} 个`
+  if (isPicking.value) return `正在抽取 ${Math.min(effectiveCount.value, poolSize.value)} 人`
   if (isPulse.value && picks.value.length === 0) return '上一轮的结果'
   if (isPulse.value && displayUids.value.length > 1) return `本次 ${displayUids.value.length} 人`
   if (isExhausted.value && isPulse.value) return '本轮已抽完，撤销或开始新一轮'
   if (noGroupAvailable.value) return '按小组抽只在小组内选人，先去「小组」建组或切回按人'
+  if (firstRun.value) return '添加人名后就能开始抽取'
   if (isPlaceholder.value && poolSize.value > 0) return `可抽 ${poolSize.value} 人`
   return ''
 })
 
 const isMany = computed(() => displayUids.value.length >= 4)
 const isMulti = computed(() => displayUids.value.length > 1)
+
+/** 读屏用：只在结果落定时更新，滚动过程中不刷屏 */
+const liveText = computed(() => {
+  if (isPicking.value || lastError.value) return ''
+  if (isPulse.value) return `抽取结果：${displayUids.value.map(nameOf).join('、')}`
+  if (isExhausted.value) return '本轮已抽完'
+  if (noGroupAvailable.value) return '没有可抽的小组'
+  return ''
+})
 </script>
 
 <template>
@@ -201,6 +224,13 @@ const isMulti = computed(() => displayUids.value.length > 1)
       </Transition>
     </div>
     <div v-if="sub" class="picker-stage__sub">{{ sub }}</div>
+    <button
+      v-if="showFirstRunCta"
+      class="btn btn--primary"
+      style="margin-top: 16px; align-self: center;"
+      @click="emit('go-roster')"
+    >去添加名单</button>
+    <span class="sr-only" role="status" aria-live="polite">{{ liveText }}</span>
   </section>
 </template>
 
@@ -229,7 +259,7 @@ const isMulti = computed(() => displayUids.value.length > 1)
   font-size: 44px;
   font-weight: 700;
   line-height: 1.1;
-  color: var(--color-primary);
+  color: var(--color-primary-text, var(--color-primary));
   word-break: break-word;
 }
 

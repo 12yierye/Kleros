@@ -18,6 +18,7 @@ defineProps<{ text: string }>()
 }
 
 .hint__btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -30,6 +31,13 @@ defineProps<{ text: string }>()
   font-size: 10px;
   line-height: 1;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+/* 视觉尺寸保持不变，扩大实际可点区域 */
+.hint__btn::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
 }
 
 .hint__btn:hover {

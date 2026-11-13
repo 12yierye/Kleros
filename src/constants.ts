@@ -6,6 +6,19 @@ export const STORAGE_KEYS = {
   PREFS: 'kleros.prefs',
 } as const
 
+/**
+ * 当前版本号：构建时由 vite.config.ts 从 package.json 注入。
+ * 回落到 0.0.0 只可能发生在配置被改坏、define 没生效的构建里。
+ */
+export const APP_VERSION: string = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '0.0.0'
+
+/** 更新只认已发布的 release，不读开发分支上的 package.json */
+export const UPDATE_SOURCE = {
+  repo: '12yierye/Kleros',
+  latestApi: 'https://api.github.com/repos/12yierye/Kleros/releases/latest',
+  releasesPage: 'https://github.com/12yierye/Kleros/releases',
+} as const
+
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]
 
 export const UID_PREFIX = {

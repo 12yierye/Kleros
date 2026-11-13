@@ -1751,3 +1751,167 @@ input[type="checkbox"]:disabled {
 .rel-source__head {
   user-select: none;
 }
+
+/* === 设置 · 关于 / 检查更新 === */
+.version-tag {
+  padding: 2px 9px;
+  border-radius: var(--r-full);
+  background: var(--color-bg-sunken);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.update-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.update-result--ok {
+  background: var(--color-ok-soft);
+  color: var(--color-ok-text);
+}
+
+.update-result--warn {
+  background: var(--color-warn-soft);
+  color: var(--color-warn-text);
+}
+
+.update-result__link {
+  flex-shrink: 0;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.update-card {
+  margin-top: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-lg);
+  background: var(--color-bg-elev);
+  overflow: hidden;
+}
+
+.update-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-sunken);
+}
+
+.update-card__version {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.update-card__date {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-subtle);
+}
+
+.update-card__notes {
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+}
+
+.update-card__actions {
+  display: flex;
+  gap: var(--sp-2);
+  padding: 10px 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.update-card__hint {
+  margin: 0;
+  padding: 0 12px 10px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+/* 更新说明的排版：只覆盖卡片里实际用到的标签 */
+.md-body > :first-child {
+  margin-top: 0;
+}
+
+.md-body > :last-child {
+  margin-bottom: 0;
+}
+
+.md-body h3,
+.md-body h4,
+.md-body h5,
+.md-body h6 {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.md-body p {
+  margin: 4px 0;
+}
+
+.md-body ul,
+.md-body ol {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.md-body li {
+  margin: 2px 0;
+}
+
+.md-body li::marker {
+  color: var(--color-text-subtle);
+}
+
+.md-body blockquote {
+  margin: 6px 0;
+  padding: 4px 10px;
+  border-left: 2px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+}
+
+.md-body strong {
+  color: var(--color-text);
+}
+
+.md-body code {
+  padding: 1px 4px;
+  border-radius: var(--r-sm);
+  background: var(--color-bg-sunken);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.md-body a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.md-body hr {
+  margin: 10px 0;
+  border: none;
+  border-top: 1px solid var(--color-border);
+}

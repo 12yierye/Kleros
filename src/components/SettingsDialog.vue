@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { useUi } from '@/composables/useUi'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
@@ -7,10 +7,13 @@ import { useBlackWhiteList } from '@/composables/useBlackWhiteList'
 import { useSession } from '@/composables/useSession'
 import { usePicker } from '@/composables/usePicker'
 import { useSettings } from '@/composables/useSettings'
+import { useUpdate } from '@/composables/useUpdate'
 import { deleteDB } from '@/composables/useDB'
 import { downloadExport } from '@/utils/export'
 import { importData } from '@/utils/import'
 import { readFileAsText } from '@/utils/nameParser'
+import { renderMarkdown } from '@/utils/markdown'
+import { UPDATE_SOURCE } from '@/constants'
 import ToggleSwitch from './ToggleSwitch.vue'
 import HintTip from './HintTip.vue'
 
@@ -23,6 +26,42 @@ const picker = usePicker()
 const { prefs, update, reset } = useSettings()
 
 const importMsg = ref<{ ok: boolean; text: string } | null>(null)
+
+const {
+  state: updateState,
+  release: updateRelease,
+  error: updateError,
+  currentVersion,
+  check: checkUpdate,
+} = useUpdate()
+
+/** Release 正文是 Markdown，渲染结果只用于更新卡片内展示 */
+const notesHtml = computed(() => renderMarkdown(updateRelease.value?.notes ?? ''))
+const releaseDate = computed(() => formatDate(updateRelease.value?.publishedAt))
+const downloadUrl = computed(() => updateRelease.value?.downloadUrl ?? UPDATE_SOURCE.releasesPage)
+
+/** 结果在设置面板最底部，检查完把卡片带进视野 */
+const updateResultRef = ref<HTMLElement | null>(null)
+
+function formatDate(iso?: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+async function onCheckUpdate() {
+  await checkUpdate()
+  await nextTick()
+  // 结果在面板最底部，检查完把设置面板滚到底，避免卡片被裁在视口外
+  const scroller = updateResultRef.value?.closest('.modal__body') as HTMLElement | null
+  if (scroller) {
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' })
+  } else {
+    updateResultRef.value?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }
+}
 
 /** 启动时沿用上次布局 */
 const rememberLayout = computed({
@@ -349,6 +388,66 @@ function onImportClick() {
                 <button class="btn btn--sm" @click="openDBInspect">查看数据库</button>
                 <button class="btn btn--sm btn--danger" @click="onClearCache">清除缓存</button>
                 <button class="btn btn--sm btn--danger" @click="onClearAll">清空全部数据</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <div class="settings-section__title">关于</div>
+
+            <div class="settings-row">
+              <span class="settings-row__label">
+                版本
+                <HintTip :text="'检查更新只在点击时查询 GitHub Releases\n平时不发任何请求'" />
+              </span>
+              <div class="settings-row__control">
+                <span class="version-tag">v{{ currentVersion }}</span>
+                <button
+                  class="btn btn--sm"
+                  :disabled="updateState === 'checking'"
+                  @click="onCheckUpdate"
+                >{{ updateState === 'checking' ? '检查中…' : '检查更新' }}</button>
+              </div>
+            </div>
+
+            <div ref="updateResultRef">
+              <div v-if="updateState === 'latest'" class="update-result update-result--ok">
+                已是最新版本
+              </div>
+
+              <div v-else-if="updateState === 'error'" class="update-result update-result--warn">
+                <span>{{ updateError }}</span>
+                <a
+                  class="update-result__link"
+                  :href="UPDATE_SOURCE.releasesPage"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >打开 GitHub</a>
+              </div>
+
+              <div v-else-if="updateState === 'available' && updateRelease" class="update-card">
+                <div class="update-card__head">
+                  <span class="update-card__version">发现新版本 {{ updateRelease.version }}</span>
+                  <span v-if="releaseDate" class="update-card__date">{{ releaseDate }}</span>
+                </div>
+                <div v-if="notesHtml" class="update-card__notes md-body" v-html="notesHtml"></div>
+                <div class="update-card__actions">
+                  <a
+                    class="btn btn--primary btn--sm"
+                    :href="downloadUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >下载新版本</a>
+                  <a
+                    class="btn btn--sm"
+                    :href="updateRelease.pageUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >打开发布页</a>
+                </div>
+                <p class="update-card__hint">
+                  下载后把文件名改回当前文件名、放回同一路径覆盖即可；数据跟着文件走，不会丢。
+                </p>
               </div>
             </div>
           </section>

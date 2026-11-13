@@ -45,6 +45,10 @@ function fixFileUrlHtml(): Plugin {
 
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? './' : '/',
+  /** 运行时版本号：前端拿它和 GitHub 上的最新 release 比对 */
+  define: {
+    __APP_VERSION__: JSON.stringify(VERSION),
+  },
   plugins: [
     vue(),
     viteSingleFile(),

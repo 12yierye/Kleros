@@ -30,6 +30,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DBInspectDialog from '@/components/DBInspectDialog.vue'
 import BundlesDialog from '@/components/BundlesDialog.vue'
 import LibraryDialog from '@/components/LibraryDialog.vue'
+import AddNamesDialog from '@/components/AddNamesDialog.vue'
 import IdleTextsDialog from '@/components/IdleTextsDialog.vue'
 
 if (typeof window !== 'undefined') {
@@ -364,7 +365,12 @@ onBeforeUnmount(() => {
                 :inert="!stackRosterOpen"
                 aria-label="当前名单 dock"
               >
-                <RosterPanel collapsible collapse-direction="down" @collapse="stackRosterOpen = false" />
+                <RosterPanel
+                  collapsible
+                  collapse-direction="down"
+                  add-mode="dialog"
+                  @collapse="stackRosterOpen = false"
+                />
               </aside>
             </div>
           </div>
@@ -383,6 +389,7 @@ onBeforeUnmount(() => {
     <AppFooter />
 
     <SettingsDialog />
+    <AddNamesDialog />
     <IdleTextsDialog />
     <RenameDialog />
     <GlobalRenameDialog />

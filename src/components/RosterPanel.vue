@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import { useRoster } from '@/composables/useRoster'
 import { usePermanentRoster } from '@/composables/usePermanentRoster'
 import { useBlackWhiteList } from '@/composables/useBlackWhiteList'
@@ -18,14 +18,26 @@ const ui = useUi()
 const props = withDefaults(defineProps<{
   collapsible?: boolean
   collapseDirection?: 'right' | 'down'
+  addMode?: 'inline' | 'dialog'
 }>(), {
   collapsible: false,
   collapseDirection: 'right',
+  addMode: 'inline',
 })
 const emit = defineEmits<{ (e: 'collapse'): void }>()
 
 const currentEntries = computed(() => roster.entries.value)
 const addOpen = ref(false)
+const bodyRef = ref<HTMLElement | null>(null)
+
+/* 添加区在名单正文顶部；正文滚动后打开添加，先滚回顶部 */
+watch(addOpen, (open) => {
+  if (!open) return
+  void nextTick(() => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    bodyRef.value?.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' })
+  })
+})
 
 /* ---------- 轻提示 ---------- */
 const flash = ref<string | null>(null)
@@ -44,6 +56,15 @@ const batchSelected = ref<Set<string>>(new Set())
 function toggleBatch() {
   batchMode.value = !batchMode.value
   batchSelected.value = new Set()
+  if (batchMode.value) addOpen.value = false
+}
+
+function onToggleAdd() {
+  if (props.addMode === 'dialog') {
+    ui.openModal('addNames')
+    return
+  }
+  addOpen.value = !addOpen.value
 }
 
 function toggleSelect(uid: string) {
@@ -153,55 +174,56 @@ function accentOf(uid: string): string {
           <p class="block-head__sub">这次抽取用 · 可随时清空</p>
         </div>
         <div class="block-head__actions">
-          <button class="btn btn--sm btn--primary" @click="addOpen = !addOpen">{{ addOpen ? '收起' : '添加' }}</button>
-          <span class="tip">
-            <button class="btn btn--sm" @click="ui.openBundles()">
-              小组{{ bundles.all.value.length ? ` ${bundles.all.value.length}` : '' }}
-            </button>
-            <span class="tip__bubble">同一小组里的人会一起被抽中</span>
-          </span>
-          <button class="btn btn--sm" :class="{ 'btn--primary': batchMode }" @click="toggleBatch">
-            {{ batchMode ? '退出批量' : '批量' }}
-          </button>
-          <button class="btn btn--sm btn--danger" :disabled="currentEntries.length === 0" @click="onClearCurrent">清空</button>
+          <template v-if="batchMode">
+            <span class="text-muted" style="font-size: 12px;">已选 {{ batchSelected.size }} 人</span>
+            <button class="btn btn--sm btn--danger" :disabled="batchSelected.size === 0" @click="onDeleteSelected">删除</button>
+            <button class="btn btn--sm" @click="toggleBatch">退出批量</button>
+          </template>
+          <template v-else>
+            <button class="btn btn--sm btn--primary" @click="onToggleAdd">{{ addOpen ? '收起' : '添加' }}</button>
+            <span class="tip">
+              <button class="btn btn--sm" @click="ui.openBundles()">
+                小组{{ bundles.all.value.length ? ` ${bundles.all.value.length}` : '' }}
+              </button>
+              <span class="tip__bubble">同一小组里的人会一起被抽中</span>
+            </span>
+            <button class="btn btn--sm" @click="toggleBatch">批量</button>
+            <button class="btn btn--sm btn--danger" :disabled="currentEntries.length === 0" @click="onClearCurrent">清空</button>
+          </template>
         </div>
       </div>
 
-      <div v-if="batchMode" class="batch-bar">
-        <span class="text-muted" style="font-size: 12px;">已选 {{ batchSelected.size }} 人</span>
-        <span class="flex-1"></span>
-        <button class="btn btn--sm btn--danger" :disabled="batchSelected.size === 0" @click="onDeleteSelected">删除</button>
-      </div>
-
-      <div class="add-area" :class="{ 'add-area--open': addOpen }">
-        <div class="add-area__inner">
-          <div class="add-area__card">
-            <InputPanel />
+      <div ref="bodyRef" class="roster-body">
+        <div class="add-area" :class="{ 'add-area--open': addOpen }">
+          <div class="add-area__inner">
+            <div class="add-area__card">
+              <InputPanel />
+            </div>
           </div>
         </div>
-      </div>
 
-      <div v-if="currentEntries.length === 0" class="empty">
-        {{ addOpen
-          ? '在上方粘贴或导入名单，也可以从顶部「名册」取用'
-          : '还没有人，点「添加」，或从顶部「名册」取用' }}
+        <div v-if="currentEntries.length === 0" class="empty">
+          {{ addOpen
+            ? '在上方粘贴或导入名单，也可以从顶部「名册」取用'
+            : '还没有人，点「添加」，或从顶部「名册」取用' }}
+        </div>
+        <TransitionGroup v-else name="chip-fade" tag="div" class="chip-list">
+          <NameChip
+            v-for="e in currentEntries"
+            :key="e.uid"
+            :name="e.name"
+            :picked="e.pickedThisSession"
+            :blocked="isBlack(e.name)"
+            :selectable="batchMode"
+            :checked="batchSelected.has(e.uid)"
+            :accent="accentOf(e.uid)"
+            :marks="marksOf(e.uid)"
+            @check="toggleSelect(e.uid)"
+            @rename="onRenameCurrent(e)"
+            @contextmenu.prevent="onRenameCurrent(e)"
+          />
+        </TransitionGroup>
       </div>
-      <TransitionGroup v-else name="chip-fade" tag="div" class="chip-list">
-        <NameChip
-          v-for="e in currentEntries"
-          :key="e.uid"
-          :name="e.name"
-          :picked="e.pickedThisSession"
-          :blocked="isBlack(e.name)"
-          :selectable="batchMode"
-          :checked="batchSelected.has(e.uid)"
-          :accent="accentOf(e.uid)"
-          :marks="marksOf(e.uid)"
-          @check="toggleSelect(e.uid)"
-          @rename="onRenameCurrent(e)"
-          @contextmenu.prevent="onRenameCurrent(e)"
-        />
-      </TransitionGroup>
     </section>
   </div>
 </template>

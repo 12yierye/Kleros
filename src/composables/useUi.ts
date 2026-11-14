@@ -13,6 +13,7 @@ export type ModalKind =
   | 'dbInspect'
   | 'bundles'
   | 'library'
+  | 'addNames'
   | 'idleTexts'
   | 'confirm'
   | null

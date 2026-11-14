@@ -246,10 +246,16 @@
 }
 
 /* 窄名单栏里的“小组”提示左对齐，避免超出栏宽被裁切 */
-.app-main__col--roster .block-head__actions .tip__bubble,
-.app-main__dock .block-head__actions .tip__bubble {
+.app-main__col--roster .block-head__actions .tip__bubble {
   left: 0;
   right: auto;
+  max-width: 240px;
+}
+
+/* dock 操作区靠右，提示气泡跟随右锚，避免右侧被卡片裁切 */
+.app-main__dock .block-head__actions .tip__bubble {
+  left: auto;
+  right: 0;
   max-width: 240px;
 }
 
@@ -263,23 +269,32 @@
 }
 
 /* 窄栏里标题独占一行，操作按钮换到下一行，避免“当前名单”被挤断 */
-.app-main__col--roster .block-head,
-.app-main__dock .block-head {
+.app-main__col--roster .block-head {
+  flex-shrink: 0;
   flex-wrap: wrap;
   row-gap: 8px;
 }
 
-.app-main__col--roster .block-head__text,
-.app-main__dock .block-head__text {
+.app-main__col--roster .block-head__text {
   flex: 1 1 100%;
   min-width: 0;
 }
 
-.app-main__col--roster .block-head__actions,
-.app-main__dock .block-head__actions {
+.app-main__col--roster .block-head__actions {
   width: 100%;
   margin-left: 0;
   justify-content: flex-start;
+}
+
+/* dock 占满宽度：标题左、操作右，只有放不下时才换行 */
+.app-main__dock .block-head {
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.app-main__dock .block-head__text {
+  min-width: 0;
 }
 
 .app-main__col--roster .roster-page > .main-section,
@@ -290,12 +305,23 @@
   flex-direction: column;
 }
 
-.app-main__col--roster .chip-list,
-.app-main__dock .chip-list {
+/* 名单正文统一滚动：卡头固定，添加区和 chip 列表一起滚 */
+.app-main__col--roster .roster-body,
+.app-main__dock .roster-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+}
+
+.app-main__col--roster .chip-list,
+.app-main__dock .chip-list {
   align-content: flex-start;
+}
+
+/* 全宽 dock 的横向节奏：列间距随视口轻微放宽，行距保持紧凑 */
+.app-main__dock .chip-list {
+  column-gap: clamp(8px, 0.2vw + 5px, 12px);
+  row-gap: 8px;
 }
 
 .roster-rail-reopen {
@@ -339,6 +365,11 @@
 
 /* === 纵向：舞台 + 底部名单 dock === */
 .app-main--stacked {
+  /* 垂直预算全部流体化：短屏优先保舞台，记录卡与 dock 有稳定份额 */
+  --stack-gap: clamp(8px, 1.5vh, 16px);
+  --stack-history-h: clamp(123px, 18vh, 184px);
+  --stack-dock-max: clamp(180px, 26vh, 324px);
+  gap: var(--stack-gap);
   overflow: hidden;
 }
 
@@ -347,7 +378,36 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
+  gap: var(--stack-gap);
+  overflow: hidden;
+}
+
+/* 纵向顶部不整体滚动：控制条与舞台固定，记录卡收缩、列表内部滚动 */
+.app-main--stacked .app-main__stack-main > .picker-bar {
+  flex-shrink: 0;
+}
+
+.app-main--stacked .app-main__stack-main > .picker-stage {
+  min-height: clamp(140px, 18vh, 180px);
+}
+
+/* 固定份额：记录条数只影响列表内部滚动，不再改变卡片高度；极窄宽度下允许少量收缩防裁切 */
+.app-main--stacked .pick-history {
+  flex: 0 1 var(--stack-history-h);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-main--stacked .pick-history .block-head {
+  flex-shrink: 0;
+}
+
+.app-main--stacked .pick-history .pick-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
   overflow-y: auto;
 }
 
@@ -386,21 +446,16 @@
 
 .app-main__dock {
   width: 100%;
-  max-height: 36vh;
+  max-height: var(--stack-dock-max);
   min-height: 0;
   display: flex;
   overflow: hidden;
 }
 
-/* dock 随内容自适应，名单很多时才封顶内部滚动 */
+/* dock 随内容自适应，名单很多时由 dock 上限封顶、内部滚动 */
 .app-main__dock .roster-page,
 .app-main__dock .roster-page > .main-section {
   flex: 0 1 auto;
-}
-
-.app-main__dock .chip-list {
-  flex: 0 1 auto;
-  max-height: 24vh;
 }
 
 .stack-roster-reopen {

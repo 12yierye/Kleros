@@ -1209,16 +1209,6 @@
   gap: 6px;
 }
 
-.batch-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 8px 10px;
-  margin-bottom: 10px;
-  border-radius: var(--r-md);
-  background: var(--color-bg-sunken);
-}
-
 .lib-group {
   padding: 10px 12px;
   margin-bottom: 10px;
@@ -1472,6 +1462,7 @@
 
 .add-block .textarea {
   min-height: 92px;
+  max-height: 240px;
 }
 
 .lib-group__icon {

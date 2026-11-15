@@ -28,12 +28,10 @@ export interface RosterEntry extends Name {
   groupId: string
 }
 
-/** 名单 chip 上的归属标记（小组 / 名册） */
-export interface RosterMark {
-  kind: 'bundle' | 'book'
-  name: string
-  color: string
-}
+/** 名单 chip 上的归属标记（小组带颜色，名册不带颜色） */
+export type RosterMark =
+  | { kind: 'bundle'; name: string; color: string }
+  | { kind: 'book'; name: string }
 
 /** 名单库成员 */
 export interface PermanentEntry extends Name {}
@@ -42,8 +40,6 @@ export interface PermanentEntry extends Name {}
 export interface PermanentGroup {
   id: string
   name: string
-  /** 组颜色（用于成员 chip 的标识色） */
-  color: string
   members: PermanentEntry[]
   createdAt: number
 }

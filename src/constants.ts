@@ -50,18 +50,3 @@ export const BINDING_GROUP_COLORS = [
 ] as const
 
 export type BindingGroupColor = (typeof BINDING_GROUP_COLORS)[number]
-
-/**
- * 名册默认取色。
- * 与小组的默认色（BINDING_GROUP_COLORS[0] 橙）错开，避免一个颜色同时代表两种归属。
- */
-export const BOOK_COLORS = [
-  '#2A9D8F',
-  '#5A7BD8',
-  '#9B5DE5',
-  '#E9C46A',
-  '#264653',
-  '#F4A261',
-  '#FF6B9D',
-  '#E76F51',
-] as const

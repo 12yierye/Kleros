@@ -74,6 +74,16 @@ function toggleSelect(uid: string) {
   batchSelected.value = s
 }
 
+const allSelected = computed(() =>
+  currentEntries.value.length > 0 && batchSelected.value.size === currentEntries.value.length
+)
+
+function toggleSelectAll() {
+  batchSelected.value = allSelected.value
+    ? new Set()
+    : new Set(currentEntries.value.map(e => e.uid))
+}
+
 function onDeleteSelected() {
   const ids = [...batchSelected.value]
   if (ids.length === 0) return
@@ -90,56 +100,52 @@ function onDeleteSelected() {
   })
 }
 
-function onClearCurrent() {
-  if (currentEntries.value.length === 0) return
-  void ui.askConfirm({
-    title: '清空当前名单？',
-    message: '只清空这次抽取用的名单，名册不受影响。',
-    danger: true,
-    confirmText: '清空',
-  }).then(ok => {
-    if (ok) roster.deleteEntries(currentEntries.value.map(e => e.uid))
-  })
-}
-
 function onRenameCurrent(e: RosterEntry) {
   ui.openRename(e.uid, 'roster')
+}
+
+function onChipContext(e: RosterEntry) {
+  if (!batchMode.value) onRenameCurrent(e)
 }
 
 /* ---------- 归属标记：小组 + 名册 ---------- */
 const EMPTY_MARKS: RosterMark[] = []
 
-const marksMap = computed(() => {
-  const map = new Map<string, RosterMark[]>()
+const markInfo = computed(() => {
+  const marksMap = new Map<string, RosterMark[]>()
+  const accents = new Map<string, string>()
   const books = lib.groups.value
   for (const e of currentEntries.value) {
     const marks: RosterMark[] = []
-    for (const b of bundles.getBundlesForName(e.name)) {
+    const entryBundles = bundles.getBundlesForName(e.name)
+    if (entryBundles[0]) accents.set(e.uid, entryBundles[0].color)
+    for (const b of entryBundles) {
       marks.push({ kind: 'bundle', name: b.name, color: b.color })
     }
     for (const g of books) {
       if (g.members.some(m => m.name === e.name)) {
-        marks.push({ kind: 'book', name: g.name, color: g.color })
+        marks.push({ kind: 'book', name: g.name })
       }
     }
-    // 同名同色的条目只留一条，避免 tooltip 重复
+    // 同名同类归属只留一条，避免 tooltip 重复
     const seen = new Set<string>()
-    map.set(e.uid, marks.filter(m => {
-      const key = `${m.kind}-${m.name}-${m.color}`
+    marksMap.set(e.uid, marks.filter(m => {
+      const key = `${m.kind}-${m.name}`
       if (seen.has(key)) return false
       seen.add(key)
       return true
     }))
   }
-  return map
+  return { marks: marksMap, accents }
 })
 
 function marksOf(uid: string): RosterMark[] {
-  return marksMap.value.get(uid) ?? EMPTY_MARKS
+  return markInfo.value.marks.get(uid) ?? EMPTY_MARKS
 }
 
+/** 只有小组参与 chip 着色；名册仅出现在 tooltip 里 */
 function accentOf(uid: string): string {
-  return marksOf(uid)[0]?.color ?? ''
+  return markInfo.value.accents.get(uid) ?? ''
 }
 </script>
 
@@ -171,25 +177,27 @@ function accentOf(uid: string): string {
               </svg>
             </button>
           </div>
-          <p class="block-head__sub">这次抽取用 · 可随时清空</p>
+          <p class="block-head__sub">这次抽取用 · 不影响名册</p>
         </div>
         <div class="block-head__actions">
-          <template v-if="batchMode">
-            <span class="text-muted" style="font-size: 12px;">已选 {{ batchSelected.size }} 人</span>
-            <button class="btn btn--sm btn--danger" :disabled="batchSelected.size === 0" @click="onDeleteSelected">删除</button>
-            <button class="btn btn--sm" @click="toggleBatch">退出批量</button>
-          </template>
-          <template v-else>
-            <button class="btn btn--sm btn--primary" @click="onToggleAdd">{{ addOpen ? '收起' : '添加' }}</button>
-            <span class="tip">
-              <button class="btn btn--sm" @click="ui.openBundles()">
-                小组{{ bundles.all.value.length ? ` ${bundles.all.value.length}` : '' }}
-              </button>
-              <span class="tip__bubble">同一小组里的人会一起被抽中</span>
-            </span>
-            <button class="btn btn--sm" @click="toggleBatch">批量</button>
-            <button class="btn btn--sm btn--danger" :disabled="currentEntries.length === 0" @click="onClearCurrent">清空</button>
-          </template>
+          <div :key="batchMode ? 'batch' : 'normal'" class="block-head__actions-group batch-swap-in">
+            <template v-if="batchMode">
+              <span class="text-muted" style="font-size: 12px;">已选 {{ batchSelected.size }} 人</span>
+              <button class="btn btn--sm" @click="toggleSelectAll">{{ allSelected ? '取消全选' : '全选' }}</button>
+              <button class="btn btn--sm btn--danger" :disabled="batchSelected.size === 0" @click="onDeleteSelected">删除</button>
+              <button class="btn btn--sm" @click="toggleBatch">退出批量</button>
+            </template>
+            <template v-else>
+              <button class="btn btn--sm btn--primary" @click="onToggleAdd">{{ addOpen ? '收起' : '添加' }}</button>
+              <span class="tip">
+                <button class="btn btn--sm" @click="ui.openBundles()">
+                  小组{{ bundles.all.value.length ? ` ${bundles.all.value.length}` : '' }}
+                </button>
+                <span class="tip__bubble">同一小组里的人会一起被抽中</span>
+              </span>
+              <button class="btn btn--sm" @click="toggleBatch">批量</button>
+            </template>
+          </div>
         </div>
       </div>
 
@@ -220,7 +228,7 @@ function accentOf(uid: string): string {
             :marks="marksOf(e.uid)"
             @check="toggleSelect(e.uid)"
             @rename="onRenameCurrent(e)"
-            @contextmenu.prevent="onRenameCurrent(e)"
+            @contextmenu.prevent="onChipContext(e)"
           />
         </TransitionGroup>
       </div>

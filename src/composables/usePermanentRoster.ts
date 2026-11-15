@@ -8,15 +8,10 @@
 import { computed, type Ref } from 'vue'
 import { useDB } from './useDB'
 import { uid } from '@/utils/id'
-import { BOOK_COLORS, STORAGE_KEYS, UID_PREFIX } from '@/constants'
+import { STORAGE_KEYS, UID_PREFIX } from '@/constants'
 import type { PermanentEntry, PermanentGroup, Name } from '@/types/roster'
 
 let _groups: Ref<PermanentGroup[]> | undefined
-
-/** 名册按加入顺序循环取色 */
-function colorAt(index: number): string {
-  return BOOK_COLORS[index % BOOK_COLORS.length]
-}
 
 function isGrouped(raw: unknown): boolean {
   if (!Array.isArray(raw)) return false
@@ -28,10 +23,9 @@ function isGrouped(raw: unknown): boolean {
 function normalize(raw: unknown): PermanentGroup[] {
   if (!Array.isArray(raw)) return []
   if (isGrouped(raw)) {
-    return (raw as PermanentGroup[]).map((g, i) => ({
+    return (raw as PermanentGroup[]).map(g => ({
       id: g.id || uid(UID_PREFIX.GROUP),
       name: g.name || '未命名组',
-      color: g.color || colorAt(i),
       createdAt: g.createdAt ?? Date.now(),
       members: Array.isArray(g.members)
         ? g.members.filter(m => m && typeof m.name === 'string').map(m => ({
@@ -47,7 +41,6 @@ function normalize(raw: unknown): PermanentGroup[] {
   return [{
     id: uid(UID_PREFIX.GROUP),
     name: '默认组',
-    color: colorAt(0),
     createdAt: Date.now(),
     members: flat.map(f => ({
       uid: f.uid || uid(UID_PREFIX.PERMANENT),
@@ -59,10 +52,8 @@ function normalize(raw: unknown): PermanentGroup[] {
 
 function getGroups() {
   if (!_groups) {
-    _groups = useDB<PermanentGroup[]>(STORAGE_KEYS.ROSTER_PERMANENT, [])
-    if (!isGrouped(_groups.value)) {
-      _groups.value = normalize(_groups.value)
-    }
+    // 加载时归一化：兼容旧扁平结构，并清掉历史遗留的 color 字段
+    _groups = useDB<PermanentGroup[]>(STORAGE_KEYS.ROSTER_PERMANENT, [], normalize)
   }
   return _groups
 }
@@ -87,7 +78,6 @@ export function usePermanentRoster() {
     const g: PermanentGroup = {
       id: uid(UID_PREFIX.GROUP),
       name: (name ?? '').trim() || uniqueGroupName(),
-      color: colorAt(groups.value.length),
       members: [],
       createdAt: Date.now(),
     }

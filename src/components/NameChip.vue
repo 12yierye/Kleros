@@ -37,6 +37,15 @@ const markLabel = computed(() => props.marks.length
   : undefined
 )
 
+/** 只有小组有颜色；名册保留同宽的空位，保证两行文字对齐 */
+function tipDotColor(m: RosterMark): string | undefined {
+  return m.kind === 'bundle' ? m.color : undefined
+}
+
+function onChipClick() {
+  if (props.selectable) emit('check')
+}
+
 /* 名单栏和 chip 列表都有滚动/裁切，归属提示必须 Teleport 到 body 才不会被吞 */
 const chipRef = ref<HTMLElement | null>(null)
 const tipRef = ref<HTMLElement | null>(null)
@@ -96,31 +105,36 @@ onBeforeUnmount(() => {
       'chip--picked': props.picked,
       'chip--blocked': props.blocked,
       'chip--marked': !!props.accent,
+      'chip--selectable': props.selectable,
     }"
     :style="props.accent ? { '--chip-accent': props.accent } : undefined"
     :title="props.marks.length ? '' : props.name"
     :tabindex="props.marks.length ? 0 : undefined"
     :role="props.marks.length ? 'group' : undefined"
     :aria-label="markLabel"
+    @click="onChipClick"
     @mouseenter="showTip"
     @mouseleave="hideTip"
     @focusin="showTip"
     @focusout="onFocusOut"
   >
-    <label v-if="props.selectable" class="chip__check" @click.stop>
-      <input type="checkbox" :checked="props.checked" @change="emit('check')" />
-    </label>
     <span class="chip__name">{{ props.name }}</span>
-    <button
-      class="chip__edit"
-      @click="emit('rename')"
-      title="重命名"
-      aria-label="重命名"
-    >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
-      </svg>
-    </button>
+    <span class="chip__trail">
+      <label v-if="props.selectable" class="chip__check" @click.stop>
+        <input type="checkbox" :checked="props.checked" @change="emit('check')" />
+      </label>
+      <button
+        v-else
+        class="chip__edit"
+        @click="emit('rename')"
+        title="重命名"
+        aria-label="重命名"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
+        </svg>
+      </button>
+    </span>
     <button
       v-if="props.closable"
       class="chip__close"
@@ -139,8 +153,28 @@ onBeforeUnmount(() => {
         role="tooltip"
       >
         <span v-for="m in props.marks" :key="`${m.kind}-${m.name}`" class="chip__tip-row">
-          <span class="chip__tip-dot" :style="{ background: m.color }"></span>
-          <span>{{ m.kind === 'bundle' ? '小组' : '名册' }} · {{ m.name }}</span>
+          <span class="chip__tip-glyph" aria-hidden="true">
+            <span
+              v-if="m.kind === 'bundle'"
+              class="chip__tip-dot"
+              :style="{ background: tipDotColor(m) }"
+            ></span>
+            <svg
+              v-else
+              class="chip__tip-bookmark"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+          </span>
+          <span>{{ m.name }}</span>
         </span>
       </span>
     </Teleport>

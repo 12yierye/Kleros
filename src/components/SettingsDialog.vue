@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useUi } from '@/composables/useUi'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 import { useRoster } from '@/composables/useRoster'
@@ -28,6 +28,24 @@ const bw = useBlackWhiteList()
 const session = useSession()
 const picker = usePicker()
 const { prefs, update, reset } = useSettings()
+
+/* 抽取样式切换会展开/收起滚动速度等区域，动画期间先隐藏滚动条 */
+let collapseScrollTimer: ReturnType<typeof setTimeout> | null = null
+watch(() => prefs.value.pickStyle, () => {
+  const el = modalRef.value
+  if (!el) return
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  el.classList.add('modal--height-animating')
+  if (collapseScrollTimer) clearTimeout(collapseScrollTimer)
+  collapseScrollTimer = setTimeout(() => {
+    el.classList.remove('modal--height-animating')
+    collapseScrollTimer = null
+  }, 300)
+})
+
+onBeforeUnmount(() => {
+  if (collapseScrollTimer) clearTimeout(collapseScrollTimer)
+})
 
 const importMsg = ref<{ ok: boolean; text: string } | null>(null)
 

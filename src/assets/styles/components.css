@@ -302,22 +302,63 @@
   gap: 6px;
 }
 
+.chip__tip-glyph {
+  width: 12px;
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 .chip__tip-dot {
   width: 8px;
   height: 8px;
   border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.chip__tip-bookmark {
+  width: 12px;
+  height: 12px;
+  opacity: 0.75;
+}
+
+.chip__trail {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
 .chip__check {
+  width: 22px;
+  height: 22px;
   display: inline-flex;
   align-items: center;
-  margin-right: 2px;
+  justify-content: center;
+  cursor: pointer;
+  animation: kleros-chip-select-in 0.14s ease;
 }
 
 .chip__check input {
   width: 14px;
   height: 14px;
+}
+
+.chip--selectable {
+  cursor: pointer;
+}
+
+@keyframes kleros-chip-select-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 
@@ -442,6 +483,27 @@
   overflow-y: auto;
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* 高度过渡期间隐藏纵向滚动条：内容暂时高于动画高度时不闪入 */
+.modal--height-animating .modal__body {
+  overflow-y: hidden;
+}
+
+/* 弹窗内列表 ↔ 编辑视图切换时的内容淡入 */
+.modal-view {
+  animation: kleros-modal-view-in 0.18s ease;
+}
+
+@keyframes kleros-modal-view-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 高度没有变化空间时的兜底反馈（见 useModalHeight） */
@@ -1207,6 +1269,26 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 6px;
+}
+
+.block-head__actions-group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.batch-swap-in {
+  animation: kleros-batch-in 0.12s ease;
+}
+
+@keyframes kleros-batch-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .lib-group {
@@ -1989,6 +2071,9 @@ input[type="checkbox"]:disabled {
   .reel__track,
   .btn--undo-glow,
   .picker-stage--blocked,
+  .modal-view,
+  .batch-swap-in,
+  .chip__check,
   .app-main {
     animation: none;
   }

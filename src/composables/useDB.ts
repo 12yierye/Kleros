@@ -117,14 +117,18 @@ async function dbSave<T>(storeName: string, value: T, key = 'value'): Promise<vo
   })
 }
 
-export function useDB<T>(storeName: string, defaultValue: T): Ref<T> {
+export function useDB<T>(
+  storeName: string,
+  defaultValue: T,
+  normalize?: (raw: unknown) => T,
+): Ref<T> {
   const state = ref(defaultValue) as Ref<T>
   let ready = false
   let counted = false
 
   dbLoad<T>(storeName).then(data => {
     if (data !== undefined) {
-      state.value = data
+      state.value = normalize ? normalize(data) : data
     }
     ready = true
     if (!counted) {

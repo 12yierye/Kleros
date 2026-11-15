@@ -9,10 +9,17 @@ import { nextTick, type Ref } from 'vue'
 
 const DURATION_MS = 260
 const EASING = 'cubic-bezier(0.33, 1, 0.68, 1)'
+/** 过渡期间隐藏滚动条，避免内容暂时高于动画中的高度时闪入 */
+const ANIM_CLASS = 'modal--height-animating'
 
 /** 强制浏览器计算一次样式，确保刚写入的高度被采用 */
 function reflow(el: HTMLElement) {
   void el.offsetHeight
+}
+
+function setAnimating(el: HTMLElement | null, on: boolean) {
+  if (!el) return
+  el.classList.toggle(ANIM_CLASS, on)
 }
 
 /**
@@ -63,6 +70,8 @@ export function useModalHeight(elRef: Ref<HTMLElement | null>) {
       reflow(el)
     }
 
+    setAnimating(el, true)
+
     const from = el.offsetHeight
     mutate()
     await nextTick()
@@ -78,6 +87,7 @@ export function useModalHeight(elRef: Ref<HTMLElement | null>) {
     if (bothCapped || Math.abs(to - from) < 2) {
       target.style.height = ''
       target.style.transition = ''
+      setAnimating(target, false)
       pulseBody(target)
       return
     }
@@ -99,6 +109,7 @@ export function useModalHeight(elRef: Ref<HTMLElement | null>) {
       if (timer) { clearTimeout(timer); timer = null }
       target.style.height = ''
       target.style.transition = ''
+      setAnimating(target, false)
       finishCurrent = null
     }
     const onEnd = (e: TransitionEvent) => {

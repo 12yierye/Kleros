@@ -219,6 +219,7 @@ function onRemoveMember(g: PermanentGroup, m: PermanentEntry) {
         </div>
 
         <div class="modal__body">
+          <div :key="editorOpen ? 'editor' : 'list'" class="modal-view">
           <!-- 列表视图 -->
           <template v-if="!editorOpen">
             <p class="modal-lead">长期保存的名单。需要时在「＋ 添加 → 从名册」里整册加入。</p>
@@ -231,7 +232,6 @@ function onRemoveMember(g: PermanentGroup, m: PermanentEntry) {
 
             <div v-for="g in groups" :key="g.id" class="lib-group">
               <div class="lib-group__head">
-                <span class="lib-group__dot" :style="{ background: g.color }"></span>
                 <span class="lib-group__name">{{ g.name }}</span>
                 <span class="lib-group__count">{{ g.members.length }}</span>
                 <span class="flex-1"></span>
@@ -311,6 +311,7 @@ function onRemoveMember(g: PermanentGroup, m: PermanentEntry) {
               </div>
             </div>
           </template>
+          </div>
         </div>
 
         <div class="modal__footer">
@@ -328,14 +329,6 @@ function onRemoveMember(g: PermanentGroup, m: PermanentEntry) {
 </template>
 
 <style scoped>
-.lib-group__dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 3px;
-  flex-shrink: 0;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-}
-
 .lib-notice {
   margin-bottom: 10px;
   padding: 6px 10px;

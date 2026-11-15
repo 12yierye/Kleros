@@ -233,6 +233,7 @@ function save() {
         </div>
 
         <div class="modal__body">
+          <div :key="editorOpen ? 'editor' : 'list'" class="modal-view">
           <!-- 列表视图 -->
           <template v-if="!editorOpen">
             <p class="modal-lead">同一小组里的人会一起被抽中，不会被拆开。</p>
@@ -347,6 +348,7 @@ function save() {
               </div>
             </div>
           </template>
+          </div>
         </div>
 
         <div class="modal__footer">
